@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SecTest VK | Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "background": "#0c0e16",
+                        "on-primary-container": "#00156d",
+                        "surface-container-high": "#1d1f2a",
+                        "error": "#ff6e84",
+                        "surface-container-lowest": "#000000",
+                        "error-dim": "#d73357",
+                        "on-tertiary": "#4a0001",
+                        "primary-fixed-dim": "#8998f0",
+                        "error-container": "#a70138",
+                        "outline": "#74757f",
+                        "secondary-dim": "#ec8300",
+                        "tertiary-container": "#fd493b",
+                        "inverse-on-surface": "#53545e",
+                        "on-surface-variant": "#aaaab5",
+                        "on-background": "#e4e4f0",
+                        "on-error": "#490013",
+                        "on-secondary-fixed": "#522a00",
+                        "primary-fixed": "#96a5ff",
+                        "secondary": "#ff8f06",
+                        "surface-dim": "#0c0e16",
+                        "on-secondary": "#462300",
+                        "on-primary-fixed": "#00083f",
+                        "outline-variant": "#464751",
+                        "inverse-primary": "#4958ac",
+                        "primary": "#9aa8ff",
+                        "on-error-container": "#ffb2b9",
+                        "tertiary": "#ff7161",
+                        "on-tertiary-fixed": "#3a0001",
+                        "on-secondary-container": "#fff6f1",
+                        "surface": "#0c0e16",
+                        "tertiary-fixed-dim": "#ff7c6c",
+                        "surface-container-highest": "#222531",
+                        "surface-tint": "#9aa8ff",
+                        "on-primary": "#122479",
+                        "surface-variant": "#222531",
+                        "surface-bright": "#292c38",
+                        "on-surface": "#e4e4f0",
+                        "surface-container": "#171923",
+                        "on-secondary-fixed-variant": "#7b4200",
+                        "secondary-fixed-dim": "#ffb373",
+                        "on-tertiary-fixed-variant": "#7a0003",
+                        "tertiary-fixed": "#ff9385",
+                        "surface-container-low": "#11131c",
+                        "secondary-fixed": "#ffc699",
+                        "secondary-container": "#8f4e00",
+                        "primary-container": "#8c9bf3",
+                        "tertiary-dim": "#ff7161",
+                        "primary-dim": "#8998f0",
+                        "on-tertiary-container": "#110000",
+                        "on-primary-fixed-variant": "#1b2c7f",
+                        "inverse-surface": "#faf8ff"
+                    },
+                    fontFamily: {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Inter"],
+                        "mono": ["JetBrains Mono"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .severity-bar-critical { width: 12%; }
+        .severity-bar-high { width: 28%; }
+        .severity-bar-medium { width: 45%; }
+        .severity-bar-low { width: 15%; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30 selection:text-primary">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-[#0c0e16] dark:bg-[#0c0e16] bg-[#11131c]">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#9aa8ff]" data-icon="terminal">terminal</span>
+<h1 class="font-['Space_Grotesk'] tracking-tight text-xl font-bold text-[#9aa8ff] tracking-widest">SecTest VK</h1>
+</div>
+<div class="hidden md:flex items-center gap-8">
+<nav class="flex gap-6 font-label text-xs uppercase tracking-widest">
+<a class="text-[#9aa8ff] border-b-2 border-primary pb-1" href="#">Dashboard</a>
+<a class="text-[#e4e4f0]/60 hover:text-[#9aa8ff] transition-colors" href="#">Projects</a>
+<a class="text-[#e4e4f0]/60 hover:text-[#9aa8ff] transition-colors" href="#">Scans</a>
+<a class="text-[#e4e4f0]/60 hover:text-[#9aa8ff] transition-colors" href="#">Findings</a>
+</nav>
+<button class="bg-primary text-on-primary px-4 py-2 rounded-md font-medium text-sm active:scale-95 duration-200 transition-colors">
+                Quick Scan
+            </button>
+</div>
+<div class="md:hidden">
+<span class="material-symbols-outlined text-primary" data-icon="menu">menu</span>
+</div>
+</header>
+<main class="pt-24 pb-32 px-4 md:px-8 max-w-7xl mx-auto space-y-8">
+<!-- Header Section -->
+<section class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="font-headline text-3xl font-bold text-on-background tracking-tight">Security Overview</h2>
+<p class="text-on-surface-variant font-label text-sm uppercase tracking-wider mt-1">Status: <span class="text-primary">3 Active Recon Tasks</span></p>
+</div>
+<div class="flex gap-2">
+<button class="bg-surface-container-high text-on-surface px-4 py-2 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors">
+                    Export Reports
+                </button>
+<button class="bg-primary text-on-primary px-5 py-2 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="add_circle">add_circle</span>
+                    Start New Scan
+                </button>
+</div>
+</section>
+<!-- KPI Cards Bento Grid -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-primary/40 relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Total Scans</p>
+<h3 class="font-headline text-4xl font-bold mt-2">1,284</h3>
+<p class="text-primary text-xs mt-2 font-mono">+12% from last week</p>
+</div>
+<span class="material-symbols-outlined absolute -right-4 -bottom-4 text-primary/5 text-8xl" data-icon="radar">radar</span>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-error/40 relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Vulnerabilities Found</p>
+<h3 class="font-headline text-4xl font-bold mt-2">42</h3>
+<p class="text-error text-xs mt-2 font-mono">12 Critical / 30 High</p>
+</div>
+<span class="material-symbols-outlined absolute -right-4 -bottom-4 text-error/5 text-8xl" data-icon="security">security</span>
+</div>
+<div class="bg-surface-container-low p-6 rounded-xl border-l-4 border-secondary/40 relative overflow-hidden">
+<div class="relative z-10">
+<p class="text-xs font-label uppercase tracking-widest text-on-surface-variant">Average Security Score</p>
+<h3 class="font-headline text-4xl font-bold mt-2">B+</h3>
+<p class="text-secondary text-xs mt-2 font-mono">78 / 100 Baseline</p>
+</div>
+<span class="material-symbols-outlined absolute -right-4 -bottom-4 text-secondary/5 text-8xl" data-icon="assessment">assessment</span>
+</div>
+</section>
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Large Chart Placeholder: Vulnerability Severity Distribution -->
+<div class="lg:col-span-2 bg-surface-container-high rounded-xl p-8 flex flex-col justify-between">
+<div class="flex justify-between items-start mb-8">
+<div>
+<h4 class="font-headline text-xl font-bold">Severity Distribution</h4>
+<p class="text-on-surface-variant text-sm">Visualizing the threat landscape across all project nodes</p>
+</div>
+<div class="flex gap-4 font-mono text-[10px] text-on-surface-variant">
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-error rounded-full"></span> Critical</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-secondary rounded-full"></span> High</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-tertiary rounded-full"></span> Medium</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-primary-fixed rounded-full"></span> Low</span>
+</div>
+</div>
+<div class="h-48 flex items-end gap-2 md:gap-4 px-4">
+<div class="flex-1 bg-error/20 hover:bg-error/40 transition-colors h-[25%] rounded-t-lg relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-error font-mono text-xs opacity-0 group-hover:opacity-100">12%</div>
+</div>
+<div class="flex-1 bg-secondary/20 hover:bg-secondary/40 transition-colors h-[50%] rounded-t-lg relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-secondary font-mono text-xs opacity-0 group-hover:opacity-100">28%</div>
+</div>
+<div class="flex-1 bg-tertiary/20 hover:bg-tertiary/40 transition-colors h-[85%] rounded-t-lg relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-tertiary font-mono text-xs opacity-0 group-hover:opacity-100">45%</div>
+</div>
+<div class="flex-1 bg-primary-fixed/20 hover:bg-primary-fixed/40 transition-colors h-[40%] rounded-t-lg relative group">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-primary-fixed font-mono text-xs opacity-0 group-hover:opacity-100">15%</div>
+</div>
+<!-- Additional decorative bars for data-rich feel -->
+<div class="flex-1 bg-primary/10 h-[60%] rounded-t-lg"></div>
+<div class="flex-1 bg-primary/10 h-[30%] rounded-t-lg"></div>
+<div class="flex-1 bg-primary/10 h-[75%] rounded-t-lg"></div>
+</div>
+<div class="mt-8 pt-6 border-t border-outline-variant/20 grid grid-cols-4 text-center">
+<div>
+<p class="text-xs font-mono text-on-surface-variant">INFRA</p>
+<p class="font-bold text-error">Critical</p>
+</div>
+<div>
+<p class="text-xs font-mono text-on-surface-variant">API</p>
+<p class="font-bold text-secondary">High</p>
+</div>
+<div>
+<p class="text-xs font-mono text-on-surface-variant">AUTH</p>
+<p class="font-bold text-tertiary">Medium</p>
+</div>
+<div>
+<p class="text-xs font-mono text-on-surface-variant">UI</p>
+<p class="font-bold text-primary-fixed">Low</p>
+</div>
+</div>
+</div>
+<!-- Recent Active Scans -->
+<div class="bg-surface-container-high rounded-xl p-6">
+<div class="flex justify-between items-center mb-6">
+<h4 class="font-headline text-lg font-bold">Active Scans</h4>
+<span class="text-primary font-mono text-[10px] animate-pulse">● LIVE</span>
+</div>
+<div class="space-y-6">
+<!-- Scan Item -->
+<div class="space-y-2 group">
+<div class="flex justify-between items-start">
+<div class="font-mono text-xs text-on-surface space-y-1">
+<p class="font-bold text-primary">local-app-v1.com</p>
+<p class="text-on-surface-variant opacity-70">Running: <span class="text-on-surface">Gobuster</span></p>
+</div>
+<span class="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">65%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 65%;"></div>
+</div>
+</div>
+<!-- Scan Item -->
+<div class="space-y-2 group">
+<div class="flex justify-between items-start">
+<div class="font-mono text-xs text-on-surface space-y-1">
+<p class="font-bold text-primary">192.168.1.105</p>
+<p class="text-on-surface-variant opacity-70">Running: <span class="text-on-surface">Nmap TCP Full</span></p>
+</div>
+<span class="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">32%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 32%;"></div>
+</div>
+</div>
+<!-- Scan Item -->
+<div class="space-y-2 group">
+<div class="flex justify-between items-start">
+<div class="font-mono text-xs text-on-surface space-y-1">
+<p class="font-bold text-primary">staging-auth.vk.io</p>
+<p class="text-on-surface-variant opacity-70">Running: <span class="text-on-surface">Burp Intruder</span></p>
+</div>
+<span class="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">89%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 89%;"></div>
+</div>
+</div>
+</div>
+<button class="w-full mt-8 py-3 rounded-lg border border-primary/20 text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
+                    View All Tasks
+                </button>
+</div>
+</section>
+<!-- Asymmetric Detail Section -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
+<div class="md:col-span-1 space-y-4">
+<div class="bg-surface-container-low p-4 rounded-xl">
+<h5 class="font-label text-xs uppercase tracking-widest text-on-surface-variant mb-4">Latest Finding</h5>
+<div class="p-3 bg-error-container/10 border-l-2 border-error rounded-r-lg">
+<p class="font-mono text-xs text-error font-bold">CVE-2023-XXXX</p>
+<p class="text-[11px] text-on-surface-variant mt-1 leading-relaxed">Broken access control detected on <code class="bg-surface-container-highest px-1 rounded text-on-surface">/api/admin/config</code></p>
+</div>
+</div>
+<div class="bg-surface-container-low p-4 rounded-xl">
+<h5 class="font-label text-xs uppercase tracking-widest text-on-surface-variant mb-2">Team Activity</h5>
+<div class="flex -space-x-2">
+<img alt="User" class="w-8 h-8 rounded-full border-2 border-surface" data-alt="Avatar of user Felix" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA194C7IoRqYeBBicALUeM27d43pV7HX7-jnkwlAD72FG6Bwi0DYHuQNjVRazXzaQJxkEsahPjQvF9bL7sW2F8zMy4Qpskzh_UxSDMBh3T7bgxh7BNkZvEoo6brr_-QtxVeibMp154V-hF5EYxHk-ur9BeTWWF3bOg0OdV3teEL4pS3v9qAeoiFe3Gx2FrK2w9r021VHObicCy-nwZzhbkUddCP6O50LH2wra1Ow-6X9-TlXdHPW_bYHiknyxCzMd01W6JlYY5UuQA"/>
+<img alt="User" class="w-8 h-8 rounded-full border-2 border-surface" data-alt="Avatar of user Aria" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyBTjdldHyjQQyXXRG8Ru4JKcGRFK-k3cnrJ8veuFvmuGmEk5s24ZNhqyEE5C3kGhzs_hXOGYdBBXZnu1ogY7E-uMWbicEhMNWDQIDe8zkHyqNhVoK_fePUOMzFNarPs4xOlyyqmU_QsFmM7YJItUsg1WlPvD2Er2cPrZ8rDDr4FZgZ9nOKv19VJwBPhNizyt-ufinSjZKucOmnItMaQ5b4Yo3z38_C5tRFvJd4fp2cycy-spttGQL2YuXUV0TCof_ThDT7nenHIw"/>
+<img alt="User" class="w-8 h-8 rounded-full border-2 border-surface" data-alt="Avatar of user Leo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMuFY6EeWWEzKFb6wbUvMWygUYQ8-rIGeG_JTgH5TLVCzD-UuTN75z83rq4k2FDNN9RnH7Pd0XDJtfzJ6DD-PVDr1icP4Ip2UO2IJgkHfFF2SOK2QhxnZPR9aMxTWXHGCmX-WBs0gQmtOJ3nmWSbTLzEMjeAIKje1XUPuv1j8dKI32rWEiWhKW3xjqGUVd1WnHCXc2nv2F8Av88CHvq3OKCDU6eGp_AVIEAtlYnRiUJxW6j4JKZnsf8I_2DSnawq81iGlzbrdOy7Q"/>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest border-2 border-surface flex items-center justify-center text-[10px] font-bold">+2</div>
+</div>
+</div>
+</div>
+<div class="md:col-span-3 bg-surface-container-lowest p-1 rounded-xl">
+<div class="bg-surface-container p-6 rounded-lg">
+<div class="flex items-center justify-between mb-6">
+<h4 class="font-headline text-xl font-bold">Node Vulnerability Map</h4>
+<div class="flex gap-2">
+<span class="w-3 h-3 rounded-full bg-error shadow-[0_0_8px_rgba(255,110,132,0.5)]"></span>
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="w-3 h-3 rounded-full bg-tertiary"></span>
+</div>
+</div>
+<div class="relative h-64 w-full bg-[#080a10] rounded-lg overflow-hidden flex items-center justify-center group">
+<!-- Abstract "Map" visualization -->
+<div class="absolute inset-0 opacity-20 pointer-events-none">
+<div class="absolute top-10 left-10 w-24 h-24 bg-primary/20 blur-3xl"></div>
+<div class="absolute bottom-10 right-20 w-32 h-32 bg-error/10 blur-3xl"></div>
+</div>
+<div class="relative grid grid-cols-4 md:grid-cols-6 gap-8 opacity-60">
+<span class="material-symbols-outlined text-4xl text-outline-variant" data-icon="hub">hub</span>
+<span class="material-symbols-outlined text-4xl text-error" data-icon="dns">dns</span>
+<span class="material-symbols-outlined text-4xl text-outline-variant" data-icon="cloud_queue">cloud_queue</span>
+<span class="material-symbols-outlined text-4xl text-secondary" data-icon="router">router</span>
+<span class="material-symbols-outlined text-4xl text-outline-variant" data-icon="storage">storage</span>
+<span class="material-symbols-outlined text-4xl text-tertiary" data-icon="laptop_chromebook">laptop_chromebook</span>
+</div>
+<div class="absolute bottom-4 left-4 font-mono text-[10px] text-on-surface-variant">
+                            COORD: 32.7157° N, 117.1611° W | SYSTEM_OK
+                        </div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 flex justify-around items-center px-2 pb-safe h-20 bg-[#0c0e16]/80 backdrop-blur-xl border-t border-[#96a5ff]/10 shadow-[0_-4px_20px_rgba(73,88,172,0.08)]">
+<a class="flex flex-col items-center justify-center text-[#9aa8ff] font-bold bg-[#96a5ff]/10 rounded-xl px-3 py-1" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="folder_open">folder_open</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] mt-1">Projects</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="radar">radar</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] mt-1">Scans</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] mt-1">Findings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="assessment">assessment</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] mt-1">Reports</span>
+</a>
+</nav>
+<!-- FAB -->
+<button class="fixed bottom-24 right-6 md:bottom-8 md:right-8 w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-2xl shadow-primary/40 hover:scale-110 active:scale-95 transition-all z-40">
+<span class="material-symbols-outlined text-3xl" data-icon="add">add</span>
+</button>
+</body></html>

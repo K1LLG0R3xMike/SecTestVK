@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: sectest_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sectest}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sectest123}
+      POSTGRES_DB: ${POSTGRES_DB:-sectest_vk}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sectest -d sectest_vk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sectest_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sectest_backend
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql://sectest:sectest123@db:5432/sectest_vk
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile
+    container_name: sectest_worker
+    volumes:
+      - ./workers:/app
+      - /var/run/docker.sock:/var/run/docker.sock  # Para que el worker lance otros contenedores
+    environment:
+      DATABASE_URL: postgresql://sectest:sectest123@db:5432/sectest_vk
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A tasks.celery_app worker --loglevel=info
+
+volumes:
+  postgres_data:

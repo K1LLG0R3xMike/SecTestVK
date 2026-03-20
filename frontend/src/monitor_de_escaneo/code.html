@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "background": "#0c0e16",
+              "on-primary-container": "#00156d",
+              "surface-container-high": "#1d1f2a",
+              "error": "#ff6e84",
+              "surface-container-lowest": "#000000",
+              "error-dim": "#d73357",
+              "on-tertiary": "#4a0001",
+              "primary-fixed-dim": "#8998f0",
+              "error-container": "#a70138",
+              "outline": "#74757f",
+              "secondary-dim": "#ec8300",
+              "tertiary-container": "#fd493b",
+              "inverse-on-surface": "#53545e",
+              "on-surface-variant": "#aaaab5",
+              "on-background": "#e4e4f0",
+              "on-error": "#490013",
+              "on-secondary-fixed": "#522a00",
+              "primary-fixed": "#96a5ff",
+              "secondary": "#ff8f06",
+              "surface-dim": "#0c0e16",
+              "on-secondary": "#462300",
+              "on-primary-fixed": "#00083f",
+              "outline-variant": "#464751",
+              "inverse-primary": "#4958ac",
+              "primary": "#9aa8ff",
+              "on-error-container": "#ffb2b9",
+              "tertiary": "#ff7161",
+              "on-tertiary-fixed": "#3a0001",
+              "on-secondary-container": "#fff6f1",
+              "surface": "#0c0e16",
+              "tertiary-fixed-dim": "#ff7c6c",
+              "surface-container-highest": "#222531",
+              "surface-tint": "#9aa8ff",
+              "on-primary": "#122479",
+              "surface-variant": "#222531",
+              "surface-bright": "#292c38",
+              "on-surface": "#e4e4f0",
+              "surface-container": "#171923",
+              "on-secondary-fixed-variant": "#7b4200",
+              "secondary-fixed-dim": "#ffb373",
+              "on-tertiary-fixed-variant": "#7a0003",
+              "tertiary-fixed": "#ff9385",
+              "surface-container-low": "#11131c",
+              "secondary-fixed": "#ffc699",
+              "secondary-container": "#8f4e00",
+              "primary-container": "#8c9bf3",
+              "tertiary-dim": "#ff7161",
+              "primary-dim": "#8998f0",
+              "on-tertiary-container": "#110000",
+              "on-primary-fixed-variant": "#1b2c7f",
+              "inverse-surface": "#faf8ff"
+            },
+            fontFamily: {
+              "headline": ["Space Grotesk"],
+              "body": ["Inter"],
+              "label": ["Inter"],
+              "mono": ["JetBrains Mono"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0c0e16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #222531;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9aa8ff;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16 bg-[#0c0e16] dark:bg-[#0c0e16]">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#9aa8ff]" data-icon="terminal">terminal</span>
+<span class="text-xl font-bold text-[#9aa8ff] tracking-widest font-['Space_Grotesk']">SecTest VK</span>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em] text-[#e4e4f0]/60">Target: 192.168.1.104</span>
+<button class="bg-primary text-on-primary px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-primary-container transition-colors active:scale-95 duration-200">
+                Quick Scan
+            </button>
+</div>
+</header>
+<main class="pt-20 pb-24 min-h-screen px-4 lg:px-8 max-w-7xl mx-auto">
+<!-- Dashboard Hero Area -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Left Column: Pipeline Stepper (Asymmetric 1/3) -->
+<aside class="lg:col-span-3 space-y-6">
+<div class="bg-surface-container-low p-6 rounded-xl">
+<h2 class="font-headline text-lg font-bold text-primary mb-6 tracking-tight">Pipeline Status</h2>
+<div class="relative space-y-8">
+<!-- Connector Line -->
+<div class="absolute left-[11px] top-2 bottom-2 w-0.5 bg-outline-variant/30"></div>
+<!-- Step 1: Completed -->
+<div class="relative flex items-center gap-4 group">
+<div class="z-10 w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold font-headline text-primary">Nmap</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Completed</p>
+</div>
+</div>
+<!-- Step 2: Completed -->
+<div class="relative flex items-center gap-4 group">
+<div class="z-10 w-6 h-6 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold font-headline text-primary">Gobuster</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Completed</p>
+</div>
+</div>
+<!-- Step 3: Active -->
+<div class="relative flex items-center gap-4 group">
+<div class="z-10 w-6 h-6 rounded-full bg-primary ring-4 ring-primary/20 flex items-center justify-center text-on-primary animate-pulse">
+<span class="material-symbols-outlined text-sm">radar</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold font-headline text-on-surface">Nikto</p>
+<p class="text-[10px] text-primary font-medium uppercase tracking-wider">Active Scan...</p>
+</div>
+</div>
+<!-- Step 4: Pending -->
+<div class="relative flex items-center gap-4 group opacity-40">
+<div class="z-10 w-6 h-6 rounded-full bg-outline-variant flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-sm">lock</span>
+</div>
+<div class="flex-1">
+<p class="text-sm font-bold font-headline">OWASP ZAP</p>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-wider">Queued</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Global Progress Card -->
+<div class="bg-surface-container-high p-6 rounded-xl">
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Overall Progress</span>
+<span class="text-2xl font-headline font-bold text-primary">64%</span>
+</div>
+<div class="w-full bg-surface-container-lowest h-2 rounded-full overflow-hidden">
+<div class="bg-gradient-to-r from-primary to-primary-container h-full w-[64%]"></div>
+</div>
+<button class="w-full mt-6 py-3 rounded-lg bg-error-container/20 text-error font-bold text-xs uppercase tracking-widest hover:bg-error-container hover:text-on-error transition-all active:scale-95">
+                        Stop Scan
+                    </button>
+</div>
+</aside>
+<!-- Right Column: Terminal & Findings (Asymmetric 2/3) -->
+<div class="lg:col-span-9 space-y-6">
+<!-- Terminal Log Window -->
+<div class="bg-surface-container-lowest rounded-xl overflow-hidden shadow-2xl flex flex-col h-[500px]">
+<div class="bg-surface-container-high px-4 py-2 flex items-center justify-between">
+<div class="flex gap-1.5">
+<div class="w-2.5 h-2.5 rounded-full bg-error-dim/40"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-secondary-dim/40"></div>
+<div class="w-2.5 h-2.5 rounded-full bg-primary-fixed-dim/40"></div>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-on-surface-variant">terminal</span>
+<span class="text-[10px] font-mono text-on-surface-variant tracking-tight">nikto_scanner_v2.1.5 --host 192.168.1.104</span>
+</div>
+<div class="w-10"></div>
+</div>
+<div class="flex-1 p-4 font-mono text-sm overflow-y-auto space-y-1 bg-[#000000]/90">
+<p class="text-primary-fixed opacity-70">[-] Nikto v2.1.5</p>
+<p class="text-on-surface-variant">---------------------------------------------------------------------------</p>
+<p class="text-on-surface-variant">[+] Target IP:          192.168.1.104</p>
+<p class="text-on-surface-variant">[+] Target Hostname:    dev-srv-01.local</p>
+<p class="text-on-surface-variant">[+] Target Port:        80</p>
+<p class="text-on-surface-variant">[+] Start Time:         2023-10-27 14:02:11 (GMT0)</p>
+<p class="text-on-surface-variant">---------------------------------------------------------------------------</p>
+<p class="text-on-surface-variant">[+] Server: Apache/2.4.41 (Ubuntu)</p>
+<p class="text-tertiary">[+] /config/: Configuration directory found (HTTP 200)</p>
+<p class="text-on-surface-variant">[+] The anti-clickjacking X-Frame-Options header is not present.</p>
+<p class="text-on-surface-variant">[+] The X-XSS-Protection header is not defined.</p>
+<p class="text-on-surface-variant">[+] The X-Content-Type-Options header is not set.</p>
+<p class="text-error font-bold">[!] /admin/phpinfo.php: PHPINFO exposed. Potential sensitive info leak.</p>
+<p class="text-on-surface-variant">[+] Cookie PHPSESSID created without the httponly flag.</p>
+<p class="text-on-surface-variant">[+] OSVDB-3268: /scripts/: Directory indexing found.</p>
+<p class="text-on-surface-variant">[+] OSVDB-3092: /cgi-bin/test.cgi: PHP is installed, and may allow execution of remote commands.</p>
+<p class="text-primary animate-pulse">_</p>
+</div>
+</div>
+<!-- Live Findings Area -->
+<div class="bg-surface-container-low rounded-xl p-6">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">security</span>
+<h3 class="font-headline font-bold text-on-surface">Live Findings</h3>
+</div>
+<span class="bg-surface-container-highest px-3 py-1 rounded-full text-[10px] font-bold text-on-surface-variant">TOTAL: 12</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-separate border-spacing-y-2">
+<thead class="text-[10px] uppercase tracking-widest text-on-surface-variant">
+<tr>
+<th class="pb-2 px-4">Severity</th>
+<th class="pb-2 px-4">Issue</th>
+<th class="pb-2 px-4">Source</th>
+<th class="pb-2 px-4 text-right">Detected</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="bg-surface-container-high group hover:bg-surface-bright transition-colors">
+<td class="px-4 py-3 rounded-l-lg">
+<span class="px-2 py-0.5 rounded bg-error-container/20 text-error text-[10px] font-bold uppercase tracking-tighter">Critical</span>
+</td>
+<td class="px-4 py-3 font-medium">PHPinfo Exposure</td>
+<td class="px-4 py-3 font-mono text-xs opacity-70">Nikto</td>
+<td class="px-4 py-3 text-right rounded-r-lg opacity-60">2m ago</td>
+</tr>
+<tr class="bg-surface-container-high group hover:bg-surface-bright transition-colors">
+<td class="px-4 py-3 rounded-l-lg">
+<span class="px-2 py-0.5 rounded bg-secondary-container/20 text-secondary text-[10px] font-bold uppercase tracking-tighter">High</span>
+</td>
+<td class="px-4 py-3 font-medium">Directory Indexing (/scripts)</td>
+<td class="px-4 py-3 font-mono text-xs opacity-70">Nikto</td>
+<td class="px-4 py-3 text-right rounded-r-lg opacity-60">5m ago</td>
+</tr>
+<tr class="bg-surface-container-high group hover:bg-surface-bright transition-colors">
+<td class="px-4 py-3 rounded-l-lg">
+<span class="px-2 py-0.5 rounded bg-tertiary-container/20 text-tertiary text-[10px] font-bold uppercase tracking-tighter">Medium</span>
+</td>
+<td class="px-4 py-3 font-medium">Missing Security Headers</td>
+<td class="px-4 py-3 font-mono text-xs opacity-70">Nikto</td>
+<td class="px-4 py-3 text-right rounded-r-lg opacity-60">8m ago</td>
+</tr>
+<tr class="bg-surface-container-high group hover:bg-surface-bright transition-colors">
+<td class="px-4 py-3 rounded-l-lg">
+<span class="px-2 py-0.5 rounded bg-primary-container/20 text-primary text-[10px] font-bold uppercase tracking-tighter">Low</span>
+</td>
+<td class="px-4 py-3 font-medium">Apache Version Disclosure</td>
+<td class="px-4 py-3 font-mono text-xs opacity-70">Nikto</td>
+<td class="px-4 py-3 text-right rounded-r-lg opacity-60">12m ago</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar Shell -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-2 pb-safe h-20 bg-[#0c0e16]/80 backdrop-blur-xl border-t border-[#96a5ff]/10 shadow-[0_-4px_20px_rgba(73,88,172,0.08)] rounded-t-xl">
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-transform active:translate-y-0.5" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="dashboard">dashboard</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em]">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-transform active:translate-y-0.5" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="folder_open">folder_open</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em]">Projects</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#9aa8ff] font-bold bg-[#96a5ff]/10 rounded-xl px-3 py-1 transition-transform active:translate-y-0.5" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="radar">radar</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em]">Scans</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-transform active:translate-y-0.5" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="security">security</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em]">Findings</span>
+</a>
+<a class="flex flex-col items-center justify-center text-[#e4e4f0]/50 hover:text-[#9aa8ff] transition-transform active:translate-y-0.5" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="assessment">assessment</span>
+<span class="font-['Inter'] text-[10px] uppercase tracking-[0.05em]">Reports</span>
+</a>
+</nav>
+<!-- Sidebar (Hidden on mobile) -->
+<div class="hidden lg:block fixed left-0 top-16 bottom-0 w-20 bg-surface-container-low border-r border-outline-variant/10 z-40">
+<div class="flex flex-col items-center py-8 gap-10">
+<div class="p-3 rounded-xl bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+</div>
+<div class="p-3 rounded-xl text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="history">history</span>
+</div>
+<div class="p-3 rounded-xl text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</div>
+<div class="mt-auto p-3 rounded-xl text-on-surface-variant cursor-pointer hover:text-error transition-colors">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+</div>
+</div>
+</div>
+</body></html>
