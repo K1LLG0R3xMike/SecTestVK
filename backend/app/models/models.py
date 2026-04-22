@@ -36,6 +36,7 @@ class Scan(Base):
     target_id = Column(Integer, ForeignKey("targets.id"))
     status = Column(String, default=ScanStatus.PENDING)
     progress = Column(Integer, default=0) # 0-100
+    logs = Column(Text, nullable=True) # Console output logs
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
     

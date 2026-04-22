@@ -7,3 +7,7 @@ redis
 celery
 python-dotenv
 alembic
+ollama
+requests
+jinja2
+xhtml2pdf

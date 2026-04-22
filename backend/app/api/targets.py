@@ -11,7 +11,7 @@ router = APIRouter(prefix="/targets", tags=["targets"])
 def create_target(target: schemas.TargetCreate, db: Session = Depends(get_db)):
     db_target = db.query(models.Target).filter(models.Target.url_or_ip == target.url_or_ip).first()
     if db_target:
-        raise HTTPException(status_code=400, detail="Target already exists")
+        return db_target
     
     new_target = models.Target(**target.model_dump())
     db.add(new_target)

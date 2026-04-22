@@ -62,7 +62,15 @@ class ScanBase(BaseModel):
     target_id: int
 
 class ScanCreate(ScanBase):
-    pass
+    config: Optional[dict] = {
+        "nmap": True,
+        "gobuster": True,
+        "nuclei": False,
+        "whatweb": False,
+        "nikto": False,
+        "sslscan": False
+    }
+    force: bool = False
 
 class ScanUpdate(BaseModel):
     status: Optional[ScanStatus] = None
@@ -73,16 +81,28 @@ class Scan(ScanBase):
     id: int
     status: ScanStatus
     progress: int
+    logs: Optional[str] = None
     start_time: datetime
     end_time: Optional[datetime] = None
     findings: List[Finding] = []
+    target: Optional[Target] = None
 
     class Config:
         from_attributes = True
 
 # --- Summary Schemas ---
+class SeverityDistribution(BaseModel):
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+    info: int = 0
+
 class DashboardSummary(BaseModel):
     total_scans: int
     vulnerabilities_found: int
-    active_scans: int
+    active_scans_count: int
     security_score: str
+    severity_distribution: SeverityDistribution
+    recent_findings: List[Finding]
+    active_scans: List[Scan]

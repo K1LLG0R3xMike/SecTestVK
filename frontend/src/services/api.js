@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -29,8 +29,29 @@ export const getScans = async () => {
   return response.data;
 };
 
-export const startScan = async (targetId) => {
-  const response = await api.post('/scans/', { target_id: targetId });
+export const getDashboardStats = async () => {
+  const response = await api.get('/scans/stats');
+  return response.data;
+};
+
+export const startScan = async (targetId, config = null, force = false) => {
+  const payload = { target_id: targetId, force: force };
+  if (config) {
+    payload.config = config;
+  }
+  const response = await api.post('/scans/', payload);
+  return response.data;
+};
+
+export const cancelScan = async (scanId) => {
+  const response = await api.post(`/scans/${scanId}/cancel`);
+  return response.data;
+};
+
+export const downloadReportPdf = async (scanId) => {
+  const response = await api.get(`/scans/${scanId}/report/pdf`, {
+    responseType: 'blob',
+  });
   return response.data;
 };
 

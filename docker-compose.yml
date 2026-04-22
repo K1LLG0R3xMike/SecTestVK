@@ -34,9 +34,8 @@ services:
     container_name: sectest_backend
     volumes:
       - ./backend:/app
-    environment:
-      DATABASE_URL: postgresql://sectest:sectest123@db:5432/sectest_vk
-      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:
@@ -54,15 +53,29 @@ services:
     volumes:
       - ./workers:/app
       - /var/run/docker.sock:/var/run/docker.sock  # Para que el worker lance otros contenedores
-    environment:
-      DATABASE_URL: postgresql://sectest:sectest123@db:5432/sectest_vk
-      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: celery -A tasks.celery_app worker --loglevel=info
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sectest_frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

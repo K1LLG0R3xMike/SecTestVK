@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SecTest VK - Security Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; }
+        .section { margin-top: 30px; }
+        .severity-critical { color: #ef4444; font-weight: bold; }
+        .severity-high { color: #f97316; font-weight: bold; }
+        .severity-medium { color: #eab308; font-weight: bold; }
+        .severity-low { color: #22c55e; font-weight: bold; }
+        .finding { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
+        .finding-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .finding-title { font-size: 1.2em; font-weight: bold; }
+        .ai-analysis { background-color: #f0f9ff; border-left: 5px solid #0ea5e9; padding: 20px; font-style: italic; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SecTest VK Security Scan Report</h1>
+        <p>Target: <strong>{{ target_url }}</strong></p>
+        <p>Scan ID: {{ scan_id }} | Generated on: {{ generation_date }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Executive Summary (AI Analysis)</h2>
+        <div class="ai-analysis">
+            {{ ai_analysis | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Scan Details</h2>
+        <table>
+            <tr>
+                <th>Target URL</th>
+                <td>{{ target_url }}</td>
+            </tr>
+            <tr>
+                <th>Start Time</th>
+                <td>{{ start_time }}</td>
+            </tr>
+            <tr>
+                <th>End Time</th>
+                <td>{{ end_time }}</td>
+            </tr>
+            <tr>
+                <th>Status</th>
+                <td>{{ status }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Vulnerability Findings</h2>
+        {% if findings %}
+            {% for finding in findings %}
+                <div class="finding">
+                    <div class="finding-header">
+                        <span class="finding-title">{{ finding.title }}</span>
+                        <span class="severity-{{ finding.severity }}">{{ finding.severity | upper }}</span>
+                    </div>
+                    <p><strong>Tool:</strong> {{ finding.tool | upper }}</p>
+                    <p><strong>Description:</strong> {{ finding.description }}</p>
+                    {% if finding.evidence %}
+                        <p><strong>Evidence:</strong></p>
+                        <pre style="background: #f4f4f4; padding: 10px; overflow: auto;">{{ finding.evidence[:500] }}...</pre>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No vulnerabilities found during this scan.</p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 50px; text-align: center; font-size: 0.8em; color: #666;">
+        Report generated automatically by SecTest VK - Automated Security Platform.
+    </div>
+</body>
+</html>

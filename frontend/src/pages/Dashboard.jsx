@@ -1,24 +1,147 @@
 import React, { useEffect, useState } from 'react';
-import { healthCheck } from '../services/api';
+import { healthCheck, createTarget, startScan, cancelScan, getDashboardStats } from '../services/api';
 
 const Dashboard = () => {
   const [backendStatus, setBackendStatus] = useState('Checking...');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [targetUrl, setTargetUrl] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanConfig, setScanConfig] = useState({
+    nmap: true,
+    gobuster: true,
+    nuclei: true,
+    whatweb: true,
+    nikto: false,
+    sslscan: true
+  });
+  const [stats, setStats] = useState({
+    total_scans: 0,
+    vulnerabilities_found: 0,
+    active_scans_count: 0,
+    security_score: 'N/A',
+    severity_distribution: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+    recent_findings: [],
+    active_scans: []
+  });
+
+  const fetchData = async () => {
+    try {
+      // Verificar salud
+      const health = await healthCheck();
+      setBackendStatus(health.status === 'healthy' ? 'Online' : 'Error');
+
+      // Obtener estadísticas del dashboard
+      const dashboardStats = await getDashboardStats();
+      setStats(dashboardStats);
+    } catch (error) {
+      console.error('Data fetch error:', error);
+      setBackendStatus('Offline');
+    }
+  };
 
   useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const data = await healthCheck();
-        setBackendStatus(data.status === 'healthy' ? 'Online' : 'Error');
-      } catch (error) {
-        console.error('Backend connection error:', error);
-        setBackendStatus('Offline');
-      }
-    };
-    checkStatus();
+    fetchData();
+    // Refresh cada 5 segundos
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleStartScan = async (e, force = false) => {
+    if (e) e.preventDefault();
+    if (!targetUrl) return;
+
+    setIsScanning(true);
+    try {
+      const target = await createTarget({ url_or_ip: targetUrl, name: targetUrl });
+      await startScan(target.id, scanConfig, force);
+      
+      setIsModalOpen(false);
+      setTargetUrl('');
+      fetchData(); // Refrescar inmediatamente
+    } catch (error) {
+      console.error('Error starting scan:', error);
+      const errorMessage = error.response?.data?.detail || error.message;
+      
+      if (errorMessage.includes("override")) {
+        if (window.confirm("A scan is already pending/running for this host. Do you want to cancel the old one and start a new one?")) {
+          handleStartScan(null, true);
+          return;
+        }
+      } else {
+        alert('Error al iniciar el escaneo: ' + errorMessage);
+      }
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleCancelScan = async (scanId) => {
+    if (!window.confirm('¿Estás seguro de que deseas cancelar este escaneo?')) return;
+    
+    try {
+      await cancelScan(scanId);
+      fetchData(); // Refrescar para ver el cambio de estado
+    } catch (error) {
+      console.error('Error cancelling scan:', error);
+      alert('Error al cancelar el escaneo: ' + (error.response?.data?.detail || error.message));
+    }
+  };
 
   return (
     <div className="pt-8 pb-32 px-4 md:px-8 max-w-7xl mx-auto space-y-8">
+      {/* Modal para Nuevo Escaneo */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-surface-container-high p-8 rounded-2xl w-full max-w-lg border border-outline-variant/20 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold font-headline">New Security Scan</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-on-surface-variant hover:text-primary transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleStartScan} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Target URL or IP</label>
+                <input 
+                  type="text" 
+                  value={targetUrl}
+                  onChange={(e) => setTargetUrl(e.target.value)}
+                  placeholder="https://example.com o 192.168.1.1"
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary transition-colors"
+                  required
+                />
+              </div>
+
+              {/* Scan Tools Checklist */}
+              <div className="space-y-3">
+                <label className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Scan Configuration</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.keys(scanConfig).map((tool) => (
+                    <label key={tool} className="flex items-center gap-3 p-3 bg-surface-container-lowest border border-outline-variant/20 rounded-xl cursor-pointer hover:border-primary/40 transition-all">
+                      <input 
+                        type="checkbox" 
+                        checked={scanConfig[tool]}
+                        onChange={() => setScanConfig(prev => ({ ...prev, [tool]: !prev[tool] }))}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <span className="text-sm font-bold uppercase tracking-tight opacity-80">{tool}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={isScanning}
+                className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold text-sm shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100"
+              >
+                {isScanning ? 'Queuing Parallel Pipeline...' : 'Launch Automated Scan'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
@@ -31,7 +154,10 @@ const Dashboard = () => {
           <button className="bg-surface-container-high text-on-surface px-4 py-2 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors">
             Export Reports
           </button>
-          <button className="bg-primary text-on-primary px-5 py-2 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2">
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-primary text-on-primary px-5 py-2 rounded-lg text-sm font-bold shadow-lg shadow-primary/20 flex items-center gap-2"
+          >
             <span className="material-symbols-outlined text-sm">add_circle</span>
             Start New Scan
           </button>
@@ -43,24 +169,26 @@ const Dashboard = () => {
         <div className="bg-surface-container-low p-6 rounded-xl border-l-4 border-primary/40 relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Total Scans</p>
-            <h3 className="font-headline text-4xl font-bold mt-2">1,284</h3>
-            <p className="text-primary text-xs mt-2 font-mono">+12% from last week</p>
+            <h3 className="font-headline text-4xl font-bold mt-2">{stats.total_scans}</h3>
+            <p className="text-primary text-xs mt-2 font-mono">Real-time infrastructure analysis</p>
           </div>
           <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-primary/5 text-8xl">radar</span>
         </div>
         <div className="bg-surface-container-low p-6 rounded-xl border-l-4 border-error/40 relative overflow-hidden">
           <div className="relative z-10">
             <p className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Vulnerabilities Found</p>
-            <h3 className="font-headline text-4xl font-bold mt-2">42</h3>
-            <p className="text-error text-xs mt-2 font-mono">12 Critical / 30 High</p>
+            <h3 className="font-headline text-4xl font-bold mt-2">{stats.vulnerabilities_found}</h3>
+            <p className="text-error text-xs mt-2 font-mono">
+              {stats.severity_distribution.critical} Critical / {stats.severity_distribution.high} High
+            </p>
           </div>
           <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-error/5 text-8xl">security</span>
         </div>
         <div className="bg-surface-container-low p-6 rounded-xl border-l-4 border-secondary/40 relative overflow-hidden">
           <div className="relative z-10">
-            <p className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Average Security Score</p>
-            <h3 className="font-headline text-4xl font-bold mt-2">B+</h3>
-            <p className="text-secondary text-xs mt-2 font-mono">78 / 100 Baseline</p>
+            <p className="text-xs font-label uppercase tracking-widest text-on-surface-variant">Security Rating</p>
+            <h3 className="font-headline text-4xl font-bold mt-2">{stats.security_score}</h3>
+            <p className="text-secondary text-xs mt-2 font-mono">Global project health</p>
           </div>
           <span className="material-symbols-outlined absolute -right-4 -bottom-4 text-secondary/5 text-8xl">assessment</span>
         </div>
@@ -82,38 +210,52 @@ const Dashboard = () => {
             </div>
           </div>
           <div className="h-48 flex items-end gap-2 md:gap-4 px-4">
-            <div className="flex-1 bg-error/20 hover:bg-error/40 transition-colors h-[25%] rounded-t-lg relative group">
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-error font-mono text-xs opacity-0 group-hover:opacity-100">12%</div>
-            </div>
-            <div className="flex-1 bg-secondary/20 hover:bg-secondary/40 transition-colors h-[50%] rounded-t-lg relative group">
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-secondary font-mono text-xs opacity-0 group-hover:opacity-100">28%</div>
-            </div>
-            <div className="flex-1 bg-tertiary/20 hover:bg-tertiary/40 transition-colors h-[85%] rounded-t-lg relative group">
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-tertiary font-mono text-xs opacity-0 group-hover:opacity-100">45%</div>
-            </div>
-            <div className="flex-1 bg-primary-fixed/20 hover:bg-primary-fixed/40 transition-colors h-[40%] rounded-t-lg relative group">
-              <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-primary-fixed font-mono text-xs opacity-0 group-hover:opacity-100">15%</div>
-            </div>
-            <div className="flex-1 bg-primary/10 h-[60%] rounded-t-lg"></div>
+            {/* Real data-driven bars */}
+            {(() => {
+              const maxVal = Math.max(
+                stats.severity_distribution.critical,
+                stats.severity_distribution.high,
+                stats.severity_distribution.medium,
+                stats.severity_distribution.low,
+                1 // Avoid division by zero
+              );
+              return (
+                <>
+                  <div className="flex-1 bg-error/20 hover:bg-error/40 transition-all rounded-t-lg relative group" style={{ height: `${(stats.severity_distribution.critical / maxVal) * 100}%` }}>
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-error font-mono text-xs opacity-0 group-hover:opacity-100">{stats.severity_distribution.critical}</div>
+                  </div>
+                  <div className="flex-1 bg-secondary/20 hover:bg-secondary/40 transition-all rounded-t-lg relative group" style={{ height: `${(stats.severity_distribution.high / maxVal) * 100}%` }}>
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-secondary font-mono text-xs opacity-0 group-hover:opacity-100">{stats.severity_distribution.high}</div>
+                  </div>
+                  <div className="flex-1 bg-tertiary/20 hover:bg-tertiary/40 transition-all rounded-t-lg relative group" style={{ height: `${(stats.severity_distribution.medium / maxVal) * 100}%` }}>
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-tertiary font-mono text-xs opacity-0 group-hover:opacity-100">{stats.severity_distribution.medium}</div>
+                  </div>
+                  <div className="flex-1 bg-primary-fixed/20 hover:bg-primary-fixed/40 transition-all rounded-t-lg relative group" style={{ height: `${(stats.severity_distribution.low / maxVal) * 100}%` }}>
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-primary-fixed font-mono text-xs opacity-0 group-hover:opacity-100">{stats.severity_distribution.low}</div>
+                  </div>
+                </>
+              );
+            })()}
             <div className="flex-1 bg-primary/10 h-[30%] rounded-t-lg"></div>
-            <div className="flex-1 bg-primary/10 h-[75%] rounded-t-lg"></div>
+            <div className="flex-1 bg-primary/10 h-[10%] rounded-t-lg"></div>
+            <div className="flex-1 bg-primary/10 h-[20%] rounded-t-lg"></div>
           </div>
           <div className="mt-8 pt-6 border-t border-outline-variant/20 grid grid-cols-4 text-center">
             <div>
-              <p className="text-xs font-mono text-on-surface-variant">INFRA</p>
-              <p className="font-bold text-error">Critical</p>
+              <p className="text-xs font-mono text-on-surface-variant">CRITICAL</p>
+              <p className="font-bold text-error">{stats.severity_distribution.critical}</p>
             </div>
             <div>
-              <p className="text-xs font-mono text-on-surface-variant">API</p>
-              <p className="font-bold text-secondary">High</p>
+              <p className="text-xs font-mono text-on-surface-variant">HIGH</p>
+              <p className="font-bold text-secondary">{stats.severity_distribution.high}</p>
             </div>
             <div>
-              <p className="text-xs font-mono text-on-surface-variant">AUTH</p>
-              <p className="font-bold text-tertiary">Medium</p>
+              <p className="text-xs font-mono text-on-surface-variant">MEDIUM</p>
+              <p className="font-bold text-tertiary">{stats.severity_distribution.medium}</p>
             </div>
             <div>
-              <p className="text-xs font-mono text-on-surface-variant">UI</p>
-              <p className="font-bold text-primary-fixed">Low</p>
+              <p className="text-xs font-mono text-on-surface-variant">LOW</p>
+              <p className="font-bold text-primary-fixed">{stats.severity_distribution.low}</p>
             </div>
           </div>
         </div>
@@ -125,45 +267,44 @@ const Dashboard = () => {
             <span className="text-primary font-mono text-[10px] animate-pulse">● LIVE</span>
           </div>
           <div className="space-y-6">
-            <div className="space-y-2 group">
-              <div className="flex justify-between items-start">
-                <div className="font-mono text-xs text-on-surface space-y-1">
-                  <p className="font-bold text-primary">local-app-v1.com</p>
-                  <p className="text-on-surface-variant opacity-70">Running: <span className="text-on-surface">Gobuster</span></p>
+            {stats.active_scans.length === 0 ? (
+              <div className="text-center py-8 space-y-2 opacity-50">
+                <span className="material-symbols-outlined text-4xl">inventory_2</span>
+                <p className="text-on-surface-variant text-sm italic">No scans running</p>
+              </div>
+            ) : (
+              stats.active_scans.map((scan) => (
+                <div key={scan.id} className="space-y-2 group">
+                  <div className="flex justify-between items-start">
+                    <div className="font-mono text-xs text-on-surface space-y-1 overflow-hidden">
+                      <p className="font-bold text-primary truncate w-32" title={scan.target?.url_or_ip}>{scan.target?.url_or_ip || scan.target_id}</p>
+                      <p className="text-on-surface-variant opacity-70">Progress: <span className="text-on-surface">{scan.progress}%</span></p>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded ${scan.status === 'running' ? 'bg-primary/10 text-primary' : 'bg-tertiary/10 text-tertiary'}`}>
+                        {scan.status.toUpperCase()}
+                      </span>
+                      <button 
+                        onClick={() => handleCancelScan(scan.id)}
+                        className="text-[10px] text-error hover:underline flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">cancel</span>
+                        Stop
+                      </button>
+                    </div>
+                  </div>
+                  <div className="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full bg-primary transition-all duration-1000 ${scan.status === 'running' ? 'animate-pulse' : ''}`} 
+                      style={{ width: `${scan.progress}%` }}
+                    ></div>
+                  </div>
                 </div>
-                <span className="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">65%</span>
-              </div>
-              <div className="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '65%' }}></div>
-              </div>
-            </div>
-            <div className="space-y-2 group">
-              <div className="flex justify-between items-start">
-                <div className="font-mono text-xs text-on-surface space-y-1">
-                  <p className="font-bold text-primary">192.168.1.105</p>
-                  <p className="text-on-surface-variant opacity-70">Running: <span className="text-on-surface">Nmap TCP Full</span></p>
-                </div>
-                <span className="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">32%</span>
-              </div>
-              <div className="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '32%' }}></div>
-              </div>
-            </div>
-            <div className="space-y-2 group">
-              <div className="flex justify-between items-start">
-                <div className="font-mono text-xs text-on-surface space-y-1">
-                  <p className="font-bold text-primary">staging-auth.vk.io</p>
-                  <p className="text-on-surface-variant opacity-70">Running: <span className="text-on-surface">Burp Intruder</span></p>
-                </div>
-                <span className="text-[10px] font-mono bg-primary/10 text-primary px-2 py-0.5 rounded">89%</span>
-              </div>
-              <div className="h-1.5 w-full bg-surface-container-lowest rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: '89%' }}></div>
-              </div>
-            </div>
+              ))
+            )}
           </div>
           <button className="w-full mt-8 py-3 rounded-lg border border-primary/20 text-primary text-sm font-medium hover:bg-primary/5 transition-colors">
-            View All Tasks
+            System Log Terminal
           </button>
         </div>
       </section>
@@ -173,10 +314,27 @@ const Dashboard = () => {
         <div className="md:col-span-1 space-y-4">
           <div className="bg-surface-container-low p-4 rounded-xl">
             <h5 className="font-label text-xs uppercase tracking-widest text-on-surface-variant mb-4">Latest Finding</h5>
-            <div className="p-3 bg-error-container/10 border-l-2 border-error rounded-r-lg">
-              <p className="font-mono text-xs text-error font-bold">CVE-2023-XXXX</p>
-              <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed">Broken access control detected on <code className="bg-surface-container-highest px-1 rounded text-on-surface">/api/admin/config</code></p>
-            </div>
+            {stats.recent_findings.length > 0 ? (
+              <div className={`p-3 border-l-2 rounded-r-lg ${
+                stats.recent_findings[0].severity === 'critical' ? 'bg-error-container/10 border-error' :
+                stats.recent_findings[0].severity === 'high' ? 'bg-secondary/10 border-secondary' :
+                'bg-tertiary/10 border-tertiary'
+              }`}>
+                <p className={`font-mono text-xs font-bold ${
+                  stats.recent_findings[0].severity === 'critical' ? 'text-error' :
+                  stats.recent_findings[0].severity === 'high' ? 'text-secondary' :
+                  'text-tertiary'
+                }`}>{stats.recent_findings[0].title}</p>
+                <p className="text-[11px] text-on-surface-variant mt-1 leading-relaxed line-clamp-2">
+                  {stats.recent_findings[0].description}
+                </p>
+                <p className="text-[9px] font-mono text-on-surface-variant/50 mt-2 uppercase">
+                  TOOL: {stats.recent_findings[0].tool}
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs italic text-on-surface-variant">No findings yet</p>
+            )}
           </div>
           <div className="bg-surface-container-low p-4 rounded-xl">
             <h5 className="font-label text-xs uppercase tracking-widest text-on-surface-variant mb-2">Team Activity</h5>
