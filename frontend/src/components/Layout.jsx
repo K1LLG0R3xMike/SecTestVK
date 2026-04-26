@@ -49,7 +49,7 @@ const Layout = ({ children }) => {
 
       <div className="flex pt-16">
         {/* NavigationDrawer (Sidebar Desktop) */}
-        <aside className="hidden md:flex flex-col py-6 px-4 h-[calc(100vh-64px)] w-80 bg-[#11131c] fixed left-0 top-16 border-r border-outline-variant/10">
+        <aside className="hidden md:flex flex-col py-6 px-4 h-[calc(100vh-64px)] w-64 bg-[#11131c] fixed left-0 top-16 border-r border-outline-variant/10">
           <div className="flex items-center gap-4 mb-10 px-2">
             <div className="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/20">
               <img 
@@ -87,7 +87,7 @@ const Layout = ({ children }) => {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 md:ml-80 min-h-[calc(100vh-64px)] overflow-y-auto">
+        <main className="flex-1 md:ml-64 min-h-[calc(100vh-64px)] overflow-y-auto">
           {children}
         </main>
       </div>

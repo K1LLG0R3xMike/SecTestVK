@@ -29,8 +29,10 @@ export const getScans = async () => {
   return response.data;
 };
 
-export const getDashboardStats = async () => {
-  const response = await api.get('/scans/stats');
+export const getDashboardStats = async ({ targetId = null, host = null } = {}) => {
+  const response = await api.get('/scans/stats', {
+    params: host ? { host } : (targetId ? { target_id: targetId } : undefined),
+  });
   return response.data;
 };
 

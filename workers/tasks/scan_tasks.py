@@ -244,7 +244,14 @@ def run_sslscan_tool(scan_id, target):
 def run_nuclei_tool(scan_id, target):
     append_scan_logs(scan_id, f"[NUCLEI] Running vulnerability templates...\n")
     # Nuclei necesita actualizar templates al menos una vez
-    subprocess.run(["nuclei", "-ut"], capture_output=True)
+    append_scan_logs(scan_id, f"[NUCLEI] Updating templates...\n")
+    update_res = subprocess.run(["nuclei", "-ut"], capture_output=True, text=True)
+    if update_res.returncode != 0:
+        append_scan_logs(scan_id, f"[NUCLEI] Template update warning (exit {update_res.returncode}).\n")
+        if update_res.stdout:
+            append_scan_logs(scan_id, f"[NUCLEI] {update_res.stdout}\n")
+        if update_res.stderr:
+            append_scan_logs(scan_id, f"[NUCLEI] {update_res.stderr}\n")
     
     # Optimizamos Nuclei para evitar el error de "unresponsive" en targets lentos o protegidos
     # -ni: no-interactivity
@@ -253,16 +260,15 @@ def run_nuclei_tool(scan_id, target):
     # -mhe 3: max host errors antes de saltar
     # -H: User-Agent personalizado para evitar bloqueos básicos
     # -passive: si el target falla, intentar modo pasivo
-    # -skip-check: saltar verificación de salud del host
     process = subprocess.Popen(
         [
             "nuclei", "-u", target, 
             "-severity", "low,medium,high,critical", 
-            "-no-color", "-ni", "-retries", "2", 
-            "-mhe", "10", "-skip-check",
+            "-no-color", "-ni", "-stats", "-timeout", "10", "-retries", "2",
+            "-mhe", "10",
             "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         ],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
     
     output = ""
@@ -285,6 +291,8 @@ def run_nuclei_tool(scan_id, target):
             })
             
     process.wait()
+    if process.returncode != 0:
+        append_scan_logs(scan_id, f"[NUCLEI] Finished with exit code {process.returncode}\n")
     save_findings(scan_id, findings, "nuclei", output)
 
 def run_nikto_tool(scan_id, target):

@@ -173,12 +173,12 @@ const Projects = () => {
                   </div>
                   <div className="flex gap-3">
                     <button 
-                      disabled={status !== 'idle' && status !== 'completed' && status !== 'failed'}
+                      disabled={(status !== 'idle' && status !== 'completed' && status !== 'failed') || scanningId === target.id}
                       onClick={() => handleStartScan(target.id)}
                       className="flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-bold flex items-center justify-center gap-2 hover:brightness-110 disabled:opacity-50 transition-all shadow-md active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-lg">bolt</span>
-                      {status === 'running' || status === 'pending' ? 'Scan in Progress' : 'Start Scan'}
+                      <span className="material-symbols-outlined text-lg">{scanningId === target.id ? 'sync' : 'bolt'}</span>
+                      {scanningId === target.id ? 'Queuing...' : (status === 'running' || status === 'pending' ? 'Scan in Progress' : 'Start Scan')}
                     </button>
                     <button 
                       onClick={() => { setSelectedTarget(target); setShowSettingsModal(true); }}

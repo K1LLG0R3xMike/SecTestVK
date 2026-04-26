@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -108,10 +108,40 @@ async def generate_scan_report(scan_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
 @router.get("/stats", response_model=schemas.DashboardSummary)
-def get_dashboard_stats(db: Session = Depends(get_db)):
-    total_scans = db.query(models.Scan).count()
-    vulnerabilities_found = db.query(models.Finding).count()
-    active_scans = db.query(models.Scan).filter(
+def get_dashboard_stats(
+    target_id: int | None = Query(default=None),
+    host: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    scans_q = db.query(models.Scan)
+    findings_q = db.query(models.Finding)
+
+    filtered_target_id: int | None = None
+    if host is not None and host != "":
+        target = db.query(models.Target).filter(models.Target.url_or_ip == host).first()
+        filtered_target_id = target.id if target else None
+    elif target_id is not None:
+        filtered_target_id = target_id
+
+    if filtered_target_id is not None:
+        scans_q = scans_q.filter(models.Scan.target_id == filtered_target_id)
+
+        latest_scan = (
+            db.query(models.Scan)
+            .filter(models.Scan.target_id == filtered_target_id)
+            .order_by(models.Scan.start_time.desc())
+            .first()
+        )
+
+        if latest_scan is None:
+            findings_q = db.query(models.Finding).filter(models.Finding.id == -1)
+        else:
+            findings_q = db.query(models.Finding).filter(models.Finding.scan_id == latest_scan.id)
+
+    total_scans = scans_q.count()
+    vulnerabilities_found = findings_q.count()
+
+    active_scans = scans_q.filter(
         models.Scan.status.in_([models.ScanStatus.PENDING, models.ScanStatus.RUNNING])
     ).all()
     # Ensure targets are loaded for active scans
@@ -119,7 +149,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         _ = s.target
     
     # Severity distribution
-    severities = db.query(models.Finding.severity, func.count(models.Finding.id)).group_by(models.Finding.severity).all()
+    severities = findings_q.with_entities(
+        models.Finding.severity,
+        func.count(models.Finding.id),
+    ).group_by(models.Finding.severity).all()
     dist = schemas.SeverityDistribution()
     for sev, count in severities:
         if sev == "critical": dist.critical = count
@@ -129,7 +162,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         elif sev == "info": dist.info = count
     
     # Recent findings
-    recent_findings = db.query(models.Finding).order_by(models.Finding.created_at.desc()).limit(5).all()
+    recent_findings = findings_q.order_by(models.Finding.created_at.desc()).limit(5).all()
     
     # Calculate dummy security score (can be improved later)
     # Critical -20, High -10, Medium -5, Low -1

@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { healthCheck, createTarget, startScan, cancelScan, getDashboardStats } from '../services/api';
+import React, { useEffect, useState, useCallback } from 'react';
+import { healthCheck, createTarget, startScan, cancelScan, getDashboardStats, getScans } from '../services/api';
 
 const Dashboard = () => {
   const [backendStatus, setBackendStatus] = useState('Checking...');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [targetUrl, setTargetUrl] = useState('');
   const [isScanning, setIsScanning] = useState(false);
+  const [targets, setTargets] = useState([]);
+  const [selectedTargetId, setSelectedTargetId] = useState('');
   const [scanConfig, setScanConfig] = useState({
     nmap: true,
     gobuster: true,
@@ -24,27 +26,38 @@ const Dashboard = () => {
     active_scans: []
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      // Verificar salud
-      const health = await healthCheck();
+      const [health, dashboardStats, targetsData] = await Promise.all([
+        healthCheck(),
+        getDashboardStats(selectedTargetId ? { targetId: Number(selectedTargetId) } : undefined),
+        getScans(),
+      ]);
       setBackendStatus(health.status === 'healthy' ? 'Online' : 'Error');
-
-      // Obtener estadísticas del dashboard
-      const dashboardStats = await getDashboardStats();
       setStats(dashboardStats);
+      const byTargetId = new Map();
+      for (const scan of targetsData) {
+        if (!scan?.target_id || !scan?.target?.url_or_ip) continue;
+        if (!byTargetId.has(scan.target_id)) {
+          byTargetId.set(scan.target_id, scan.target.url_or_ip);
+        }
+      }
+      const options = Array.from(byTargetId.entries())
+        .map(([id, url_or_ip]) => ({ id, url_or_ip }))
+        .sort((a, b) => a.url_or_ip.localeCompare(b.url_or_ip));
+      setTargets(options);
     } catch (error) {
       console.error('Data fetch error:', error);
       setBackendStatus('Offline');
     }
-  };
+  }, [selectedTargetId]);
 
   useEffect(() => {
     fetchData();
     // Refresh cada 5 segundos
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
   const handleStartScan = async (e, force = false) => {
     if (e) e.preventDefault();
@@ -145,7 +158,22 @@ const Dashboard = () => {
       {/* Header Section */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="font-headline text-3xl font-bold text-on-background tracking-tight">Security Overview</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-headline text-3xl font-bold text-on-background tracking-tight">Security Overview</h2>
+            <select
+              value={selectedTargetId}
+              onChange={(e) => setSelectedTargetId(e.target.value)}
+              className="bg-surface-container-high border border-outline-variant/30 rounded-lg px-3 py-2 text-xs font-mono text-on-surface-variant focus:outline-none focus:border-primary transition-colors"
+              aria-label="Seleccionar host"
+            >
+              <option value="">All Hosts</option>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.url_or_ip}
+                </option>
+              ))}
+            </select>
+          </div>
           <p className="text-on-surface-variant font-label text-sm uppercase tracking-wider mt-1">
             Status: <span className={backendStatus === 'Online' ? 'text-primary' : 'text-error'}>{backendStatus}</span>
           </p>
