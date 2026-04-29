@@ -37,6 +37,7 @@ class Scan(Base):
     status = Column(String, default=ScanStatus.PENDING)
     progress = Column(Integer, default=0) # 0-100
     logs = Column(Text, nullable=True) # Console output logs
+    attack_vector_analysis = Column(Text, nullable=True) # JSON with AI analysis of attack vectors
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
     

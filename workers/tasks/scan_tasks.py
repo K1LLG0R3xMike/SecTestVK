@@ -20,6 +20,7 @@ class Scan(Base):
     status = Column(String)
     progress = Column(Integer)
     logs = Column(Text)
+    attack_vector_analysis = Column(Text, nullable=True)
     start_time = Column(DateTime)
     end_time = Column(DateTime)
 
@@ -621,3 +622,94 @@ def run_gobuster_scan(self, target: str):
     scan_id = self.request.id
     update_scan_status(scan_id, "running")
     # ... lógica similar para gobuster ...
+
+import asyncio
+import httpx
+
+@celery_app.task(name="tasks.analyze_attack_vectors", bind=True)
+def analyze_attack_vectors(self, scan_id: int, provider: str = "claude"):
+    """
+    Celery task to analyze attack vectors for a scan.
+    Calls the AI analyzer service and saves results to DB.
+    """
+    print(f"[ATTACK_VECTOR_ANALYSIS] Starting analysis for scan {scan_id} using {provider}")
+    
+    # Get findings from DB
+    session = SessionLocal()
+    try:
+        findings = session.query(Finding).filter(Finding.scan_id == scan_id).all()
+        
+        if not findings:
+            print(f"[ATTACK_VECTOR_ANALYSIS] No findings for scan {scan_id}")
+            return {"error": "No findings to analyze"}
+        
+        print(f"[ATTACK_VECTOR_ANALYSIS] Found {len(findings)} findings for analysis")
+        
+        # Call analyzer service
+        try:
+            # Use asyncio to call the async function
+            analysis_result = asyncio.run(_call_analyzer_service(findings, scan_id, provider))
+            
+            if "error" in analysis_result:
+                print(f"[ATTACK_VECTOR_ANALYSIS] Error from analyzer: {analysis_result}")
+                return analysis_result
+            
+            # Save to DB
+            scan = session.query(Scan).filter(Scan.id == scan_id).first()
+            if scan:
+                scan.attack_vector_analysis = json.dumps(analysis_result)
+                session.commit()
+                print(f"[ATTACK_VECTOR_ANALYSIS] Saved analysis to DB for scan {scan_id}")
+            
+            return {"status": "completed", "analysis": analysis_result}
+        
+        except Exception as e:
+            print(f"[ATTACK_VECTOR_ANALYSIS] Error: {str(e)}")
+            return {"error": str(e)}
+    
+    finally:
+        session.close()
+
+async def _call_analyzer_service(findings: list, scan_id: int, provider: str) -> dict:
+    """Call the AI analyzer HTTP service."""
+    
+    analyzer_host = os.getenv("AI_ANALYZER_HOST", "http://ai_analyzer:8001")
+    
+    # Convert Finding objects to dicts
+    findings_data = [
+        {
+            "id": f.id,
+            "scan_id": f.scan_id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "tool": f.tool,
+            "evidence": f.evidence or ""
+        }
+        for f in findings
+    ]
+    
+    payload = {
+        "findings": findings_data,
+        "scan_id": scan_id,
+        "provider": provider
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{analyzer_host}/analyze",
+                json=payload
+            )
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {
+                    "error": f"Analyzer error {response.status_code}",
+                    "detail": response.text
+                }
+    except httpx.TimeoutException:
+        return {"error": "Analyzer request timed out (120s)"}
+    except Exception as e:
+        return {"error": f"Failed to contact analyzer: {str(e)}"}

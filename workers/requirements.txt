@@ -6,3 +6,4 @@ python-dotenv
 docker
 pydantic-settings
 requests
+httpx

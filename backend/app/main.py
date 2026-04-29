@@ -1,11 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from .api import targets, scans
 from .core.database import engine, Base
 from .models import models
 
 # Crear tablas en la base de datos (en producción usar Alembic)
 Base.metadata.create_all(bind=engine)
+
+
+def run_startup_migrations():
+    """Apply lightweight schema updates for environments without Alembic."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE scans
+                ADD COLUMN IF NOT EXISTS attack_vector_analysis TEXT
+                """
+            )
+        )
+
+
+run_startup_migrations()
 
 app = FastAPI(
     title="SecTest VK API",

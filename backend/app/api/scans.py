@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from typing import List
+import json
 from ..core.database import get_db
 from ..models import models
 from ..schemas import schemas
@@ -224,3 +225,121 @@ def cancel_scan(scan_id: int, db: Session = Depends(get_db)):
         return {"detail": "Scan cancellation request sent"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to cancel scan: {str(e)}")
+
+# ============ ATTACK VECTOR ANALYSIS ENDPOINTS ============
+
+@router.post("/{scan_id}/analyze/vectors")
+def request_attack_vector_analysis(scan_id: int, provider: str = "claude", db: Session = Depends(get_db)):
+    """
+    Request attack vector analysis for a scan's findings.
+    Uses Claude or OpenAI to identify potential attack chains.
+    
+    - **scan_id**: Scan ID to analyze
+    - **provider**: AI provider (claude or openai)
+    
+    Returns task ID for polling results.
+    """
+    scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    findings = db.query(models.Finding).filter(models.Finding.scan_id == scan_id).all()
+    if not findings:
+        raise HTTPException(status_code=400, detail="No findings to analyze")
+    
+    # Check if already analyzed (cached in DB)
+    if scan.attack_vector_analysis:
+        return {
+            "status": "cached",
+            "scan_id": scan_id,
+            "analysis": json.loads(scan.attack_vector_analysis)
+        }
+    
+    # Enqueue Celery task
+    try:
+        task = celery_app.send_task(
+            "tasks.analyze_attack_vectors",
+            args=[scan_id, provider]
+        )
+        return {
+            "status": "queued",
+            "scan_id": scan_id,
+            "task_id": task.id,
+            "message": f"Analysis queued with {provider} provider"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to queue analysis: {str(e)}")
+
+@router.get("/{scan_id}/analyze/vectors/status/{task_id}")
+def get_analysis_status(scan_id: int, task_id: str, db: Session = Depends(get_db)):
+    """
+    Poll the status of an attack vector analysis task.
+    
+    - **scan_id**: Scan ID
+    - **task_id**: Celery task ID from request_attack_vector_analysis
+    """
+    scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    # Get Celery task status
+    async_result = celery_app.AsyncResult(task_id)
+    
+    if async_result.ready():
+        if async_result.successful():
+            result = async_result.result
+
+            if isinstance(result, dict) and result.get("error"):
+                return {
+                    "status": "failed",
+                    "scan_id": scan_id,
+                    "error": result.get("error"),
+                    "detail": result.get("detail"),
+                }
+            
+            # Save to DB if not already saved
+            if not scan.attack_vector_analysis and result.get("analysis"):
+                scan.attack_vector_analysis = json.dumps(result["analysis"])
+                db.commit()
+            
+            return {
+                "status": "completed",
+                "scan_id": scan_id,
+                "analysis": result.get("analysis")
+            }
+        else:
+            return {
+                "status": "failed",
+                "scan_id": scan_id,
+                "error": str(async_result.info)
+            }
+    else:
+        return {
+            "status": "pending",
+            "scan_id": scan_id,
+            "message": "Analysis in progress..."
+        }
+
+@router.get("/{scan_id}/analyze/vectors")
+def get_attack_vector_analysis(scan_id: int, db: Session = Depends(get_db)):
+    """
+    Get cached attack vector analysis for a scan.
+    Returns the analysis if available, or None if not analyzed yet.
+    """
+    scan = db.query(models.Scan).filter(models.Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    if scan.attack_vector_analysis:
+        return {
+            "status": "available",
+            "scan_id": scan_id,
+            "analysis": json.loads(scan.attack_vector_analysis)
+        }
+    else:
+        return {
+            "status": "not_analyzed",
+            "scan_id": scan_id,
+            "message": "No analysis available. Use POST /scans/{id}/analyze/vectors to start one."
+        }
+

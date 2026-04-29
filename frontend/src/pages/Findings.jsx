@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { getScans } from '../services/api';
+import {
+  getScans,
+  getAttackVectorAnalysis,
+  requestAttackVectorAnalysis,
+  getAttackVectorAnalysisStatus,
+} from '../services/api';
 
 const Findings = () => {
   const [scansWithFindings, setScansWithFindings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedScans, setExpandedScans] = useState({});
+  const [analysisByScan, setAnalysisByScan] = useState({});
+  const [analysisLoadingByScan, setAnalysisLoadingByScan] = useState({});
+  const [analysisErrorByScan, setAnalysisErrorByScan] = useState({});
 
   useEffect(() => {
     const fetchFindings = async () => {
@@ -35,6 +43,89 @@ const Findings = () => {
       ...prev,
       [scanId]: !prev[scanId]
     }));
+  };
+
+  const pollAnalysis = async (scanId, taskId) => {
+    const maxAttempts = 40;
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts += 1;
+      try {
+        const status = await getAttackVectorAnalysisStatus(scanId, taskId);
+
+        if (status.status === 'completed' && status.analysis) {
+          setAnalysisByScan(prev => ({ ...prev, [scanId]: status.analysis }));
+          setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+          return;
+        }
+
+        if (status.status === 'failed') {
+          setAnalysisErrorByScan(prev => ({
+            ...prev,
+            [scanId]: status.error || 'Analysis failed',
+          }));
+          setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+          return;
+        }
+
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 3000);
+        } else {
+          setAnalysisErrorByScan(prev => ({
+            ...prev,
+            [scanId]: 'Analysis timeout. Try again.',
+          }));
+          setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+        }
+      } catch (error) {
+        setAnalysisErrorByScan(prev => ({
+          ...prev,
+          [scanId]: error?.response?.data?.detail || error.message || 'Error polling analysis',
+        }));
+        setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+      }
+    };
+
+    poll();
+  };
+
+  const handleAnalyzeVectors = async (scanId) => {
+    setAnalysisErrorByScan(prev => ({ ...prev, [scanId]: null }));
+    setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: true }));
+
+    try {
+      const cached = await getAttackVectorAnalysis(scanId);
+      if (cached.status === 'available' && cached.analysis) {
+        setAnalysisByScan(prev => ({ ...prev, [scanId]: cached.analysis }));
+        setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+        return;
+      }
+    } catch (_) {
+      // Continue with fresh analysis request.
+    }
+
+    try {
+      const result = await requestAttackVectorAnalysis(scanId, 'claude');
+      if (result.status === 'cached' && result.analysis) {
+        setAnalysisByScan(prev => ({ ...prev, [scanId]: result.analysis }));
+        setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+        return;
+      }
+
+      if (result.status === 'queued' && result.task_id) {
+        pollAnalysis(scanId, result.task_id);
+        return;
+      }
+
+      setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+    } catch (error) {
+      setAnalysisErrorByScan(prev => ({
+        ...prev,
+        [scanId]: error?.response?.data?.detail || error.message || 'Error starting analysis',
+      }));
+      setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
+    }
   };
 
   const getSeverityStyles = (severity) => {
@@ -105,6 +196,67 @@ const Findings = () => {
               {/* Findings Sub-list */}
               {expandedScans[scan.id] && (
                 <div className="p-6 space-y-4 border-t border-outline-variant/10">
+                  <section className="bg-surface-container-high rounded-xl border border-outline-variant/15 p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <h4 className="font-headline text-lg font-bold text-on-surface">Attack Vector Analysis</h4>
+                        <p className="text-xs text-on-surface-variant">AI-based chaining of findings into potential attack paths.</p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAnalyzeVectors(scan.id);
+                        }}
+                        disabled={analysisLoadingByScan[scan.id]}
+                        className="bg-primary text-on-primary px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-60"
+                      >
+                        {analysisLoadingByScan[scan.id] ? 'Analyzing...' : 'Analyze Attack Vectors'}
+                      </button>
+                    </div>
+
+                    {analysisErrorByScan[scan.id] && (
+                      <p className="mt-3 text-xs text-error">{analysisErrorByScan[scan.id]}</p>
+                    )}
+
+                    {analysisByScan[scan.id] && (
+                      <div className="mt-4 space-y-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="text-[10px] px-2 py-1 rounded border border-primary/40 text-primary font-bold uppercase">
+                            Risk Score: {analysisByScan[scan.id].risk_score}/10
+                          </span>
+                          <span className="text-[10px] px-2 py-1 rounded border border-outline-variant/30 text-on-surface-variant font-bold uppercase">
+                            {analysisByScan[scan.id].combined_risk || 'N/A'}
+                          </span>
+                        </div>
+
+                        <p className="text-on-surface-variant">{analysisByScan[scan.id].summary}</p>
+
+                        {Array.isArray(analysisByScan[scan.id].attack_vectors) && analysisByScan[scan.id].attack_vectors.length > 0 && (
+                          <div className="space-y-2">
+                            {analysisByScan[scan.id].attack_vectors.map((vector, idx) => (
+                              <div key={`${scan.id}-vector-${idx}`} className="bg-surface-container-lowest rounded-lg border border-outline-variant/10 p-3">
+                                <p className="font-bold text-on-surface">{vector.name}</p>
+                                <p className="text-xs text-on-surface-variant mt-1">{vector.description}</p>
+                                <p className="text-[10px] uppercase mt-2 text-primary font-bold">Probability: {vector.probability} | Impact: {vector.impact}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {Array.isArray(analysisByScan[scan.id].recommendations) && analysisByScan[scan.id].recommendations.length > 0 && (
+                          <div className="bg-surface-container-lowest rounded-lg border border-outline-variant/10 p-3">
+                            <p className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-2">Recommendations</p>
+                            <ul className="list-disc pl-5 space-y-1 text-xs text-on-surface-variant">
+                              {analysisByScan[scan.id].recommendations.map((rec, idx) => (
+                                <li key={`${scan.id}-rec-${idx}`}>{rec}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </section>
+
                   {scan.findings.map((finding) => (
                     <article key={finding.id} className="bg-surface-container-lowest border border-outline-variant/10 rounded-xl overflow-hidden group hover:border-primary/20 transition-all">
                       <div className="p-5">

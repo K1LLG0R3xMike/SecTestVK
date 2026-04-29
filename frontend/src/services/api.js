@@ -64,4 +64,21 @@ export const downloadReportPdf = async (scanId) => {
   return response.data;
 };
 
+export const requestAttackVectorAnalysis = async (scanId, provider = 'claude') => {
+  const response = await api.post(`/scans/${scanId}/analyze/vectors`, null, {
+    params: { provider },
+  });
+  return response.data;
+};
+
+export const getAttackVectorAnalysisStatus = async (scanId, taskId) => {
+  const response = await api.get(`/scans/${scanId}/analyze/vectors/status/${taskId}`);
+  return response.data;
+};
+
+export const getAttackVectorAnalysis = async (scanId) => {
+  const response = await api.get(`/scans/${scanId}/analyze/vectors`);
+  return response.data;
+};
+
 export default api;
