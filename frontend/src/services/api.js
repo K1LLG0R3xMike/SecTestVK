@@ -1,6 +1,13 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const browserHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+const isBrowserLocalhost = browserHost === 'localhost' || browserHost === '127.0.0.1';
+const pointsToLocalhost = typeof configuredApiUrl === 'string' && /localhost|127\.0\.0\.1/.test(configuredApiUrl);
+
+export const API_URL = configuredApiUrl
+  ? (pointsToLocalhost && !isBrowserLocalhost ? '/api' : configuredApiUrl)
+  : (isBrowserLocalhost ? 'http://localhost:8000' : '/api');
 
 const api = axios.create({
   baseURL: API_URL,

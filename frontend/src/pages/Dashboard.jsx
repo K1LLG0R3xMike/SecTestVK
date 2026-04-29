@@ -14,7 +14,8 @@ const Dashboard = () => {
     nuclei: true,
     whatweb: true,
     nikto: false,
-    sslscan: true
+    sslscan: true,
+    zap: false
   });
   const [stats, setStats] = useState({
     total_scans: 0,

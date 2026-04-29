@@ -68,7 +68,8 @@ class ScanCreate(ScanBase):
         "nuclei": False,
         "whatweb": False,
         "nikto": False,
-        "sslscan": False
+        "sslscan": False,
+        "zap": False
     }
     force: bool = False
 

@@ -18,7 +18,8 @@ const Projects = () => {
     nuclei: true,
     whatweb: true,
     nikto: false,
-    sslscan: true
+    sslscan: true,
+    zap: false
   });
 
   const fetchData = async () => {

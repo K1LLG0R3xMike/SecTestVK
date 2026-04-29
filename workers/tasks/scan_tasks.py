@@ -1,6 +1,8 @@
 import subprocess
 import json
 import re
+import tempfile
+import shutil
 from .celery_app import celery_app
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
@@ -122,6 +124,10 @@ def run_combined_scan(self, scan_id, target: str, config: dict):
         update_scan_status(scan_id, "running", progress=60)
         run_tool_safely(scan_id, "sslscan", run_sslscan_tool, domain_target)
 
+    if config.get("zap") and target.startswith("http"):
+        update_scan_status(scan_id, "running", progress=75)
+        run_tool_safely(scan_id, "docker", run_zap_tool, target)
+
     if config.get("nuclei") and target.startswith("http"):
         update_scan_status(scan_id, "running", progress=80)
         run_tool_safely(scan_id, "nuclei", run_nuclei_tool, target)
@@ -148,7 +154,7 @@ def run_nmap_tool(scan_id, target):
         append_scan_logs(scan_id, f"[NMAP] {line}")
     process.wait()
     findings = parse_nmap_output(output)
-    save_findings(scan_id, findings, "nmap", output)
+    save_findings(scan_id, findings, "nmap")
 
 def run_gobuster_tool(scan_id, target):
     # Lógica mejorada de wildcard para detectar comportamientos como el de Vercel (403/404 con longitud fija)
@@ -181,7 +187,7 @@ def run_gobuster_tool(scan_id, target):
         append_scan_logs(scan_id, f"[GOBUSTER] {line}")
     process.wait()
     findings = parse_gobuster_output(output)
-    save_findings(scan_id, findings, "gobuster", output)
+    save_findings(scan_id, findings, "gobuster")
 
 def run_whatweb_tool(scan_id, target):
     append_scan_logs(scan_id, f"[WHATWEB] Identifying technologies...\n")
@@ -203,12 +209,9 @@ def run_whatweb_tool(scan_id, target):
                 })
     
     if not findings:
-        findings.append({
-            "title": "WhatWeb Analysis Complete",
-            "description": "Se completó el análisis de tecnologías sin hallazgos específicos.",
-            "severity": "info"
-        })
-    save_findings(scan_id, findings, "whatweb", output)
+        append_scan_logs(scan_id, f"[WHATWEB] No relevant findings detected.\n")
+    else:
+        save_findings(scan_id, findings, "whatweb")
 
 def run_sslscan_tool(scan_id, target):
     append_scan_logs(scan_id, f"[SSLSCAN] Testing SSL/TLS configuration...\n")
@@ -239,7 +242,66 @@ def run_sslscan_tool(scan_id, target):
             "severity": "high"
         })
 
-    save_findings(scan_id, findings, "sslscan", output)
+    save_findings(scan_id, findings, "sslscan")
+
+def run_zap_tool(scan_id, target):
+    append_scan_logs(scan_id, f"[ZAP] Launching OWASP ZAP baseline scan in container...\n")
+    workdir = tempfile.mkdtemp(prefix=f"sectest_zap_{scan_id}_")
+    # Asegurar que el directorio temporal sea escribible desde dentro del contenedor
+    try:
+        os.chmod(workdir, 0o777)
+        append_scan_logs(scan_id, f"[ZAP] Set permissions 0777 on workdir {workdir}\n")
+    except Exception as e:
+        append_scan_logs(scan_id, f"[ZAP] Warning: could not chmod workdir {workdir}: {e}\n")
+    report_json = os.path.join(workdir, "zap_report.json")
+    zap_image = os.getenv("ZAP_DOCKER_IMAGE", "ghcr.io/zaproxy/zaproxy:stable")
+
+    try:
+        cmd = [
+            "docker", "run", "--rm",
+            "--user", "0",
+            "--network", "host",
+            "-v", f"{workdir}:/zap/wrk",
+            zap_image,
+            "zap-baseline.py",
+            "-t", target,
+            "-J", "/zap/wrk/zap_report.json",
+            "-r", "/zap/wrk/zap_report.html",
+            "-I"
+        ]
+
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        output = ""
+        for line in process.stdout:
+            output += line
+            append_scan_logs(scan_id, f"[ZAP] {line}")
+
+        process.wait()
+
+        findings = parse_zap_output(output)
+        append_scan_logs(scan_id, f"[ZAP] Parsed {len(findings)} findings from stdout\n")
+
+        if os.path.exists(report_json):
+            json_findings = parse_zap_json_report(report_json)
+            append_scan_logs(scan_id, f"[ZAP] Parsed {len(json_findings)} findings from JSON report\n")
+            # Preferimos hallazgos del JSON por ser más estructurados.
+            if json_findings:
+                findings = json_findings
+
+        if not findings:
+            append_scan_logs(scan_id, "[ZAP] No actionable findings after parsing.\n")
+        else:
+            save_findings(scan_id, findings, "zap")
+            append_scan_logs(scan_id, f"[ZAP] Saved {len(findings)} findings to database\n")
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
 
 def run_nuclei_tool(scan_id, target):
     append_scan_logs(scan_id, f"[NUCLEI] Running vulnerability templates...\n")
@@ -293,7 +355,7 @@ def run_nuclei_tool(scan_id, target):
     process.wait()
     if process.returncode != 0:
         append_scan_logs(scan_id, f"[NUCLEI] Finished with exit code {process.returncode}\n")
-    save_findings(scan_id, findings, "nuclei", output)
+    save_findings(scan_id, findings, "nuclei")
 
 def run_nikto_tool(scan_id, target):
     # Obtener el comando correcto de nikto
@@ -333,16 +395,16 @@ def run_nikto_tool(scan_id, target):
             })
             
     process.wait()
-    save_findings(scan_id, findings, "nikto", output)
+    save_findings(scan_id, findings, "nikto")
 
-def save_findings(scan_id, findings, tool, evidence):
+def save_findings(scan_id, findings, tool, evidence=None):
     session = SessionLocal()
     try:
         for f in findings:
             session.add(Finding(
                 scan_id=scan_id, title=f["title"], 
                 description=f["description"], severity=f["severity"],
-                tool=tool, evidence=evidence
+                tool=tool, evidence=f.get("evidence") or evidence
             ))
         session.commit()
     finally:
@@ -365,7 +427,8 @@ def parse_nmap_output(output):
             findings.append({
                 "title": f"Open Port: {port}/{proto} ({service})",
                 "description": f"Se detectó el puerto {port} abierto ejecutando el servicio {service}. {f'Versión: {version}' if version else ''}",
-                "severity": severity
+                "severity": severity,
+                "evidence": line.strip()
             })
     return findings
 
@@ -405,8 +468,152 @@ def parse_gobuster_output(output):
             findings.append({
                 "title": f"Directory Discovered: {path}",
                 "description": f"Se detectó un directorio o archivo accesible con código de estado {status} (Tamaño: {size}).",
-                "severity": severity
+                "severity": severity,
+                "evidence": line.strip()
             })
+    return findings
+
+def parse_zap_output(output):
+    findings = []
+    bracket_pattern = re.compile(r"^\[(warn|fail)\]\s+(.*?)(?:\s+\[(\d+)\])?\s*$", re.IGNORECASE)
+    af_line_pattern = re.compile(
+        r"^(WARN|FAIL)(?:-(NEW|INPROG))?:\s*(.+?)(?:\s+\[(\d+)\])?(?:\s+x\s+(\d+))?\s*$",
+        re.IGNORECASE,
+    )
+    af_summary_pattern = re.compile(
+        r"FAIL-NEW:\s*(\d+).*?FAIL-INPROG:\s*(\d+).*?WARN-NEW:\s*(\d+).*?WARN-INPROG:\s*(\d+)",
+        re.IGNORECASE,
+    )
+    summary_emitted = False
+    detailed_emitted = False
+
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        # Formato clásico: [WARN] Missing Header [10020]
+        match = bracket_pattern.match(stripped)
+        if match:
+            tag, message, plugin_id = match.groups()
+            severity = "medium" if tag.lower() == "warn" else "high"
+            title = message.strip()
+            if title:
+                findings.append({
+                    "title": f"ZAP: {title}",
+                    "description": f"OWASP ZAP reportó el hallazgo '{title}'.",
+                    "severity": severity,
+                    "evidence": f"{stripped}{f' | plugin_id={plugin_id}' if plugin_id else ''}",
+                })
+                detailed_emitted = True
+            continue
+
+        # Formato Automation Framework: WARN-NEW: Missing Header [10020] x 3
+        af_match = af_line_pattern.match(stripped)
+        if af_match:
+            level, state, message, plugin_id, count = af_match.groups()
+            message_norm = (message or "").strip()
+
+            # Evitamos líneas de resumen (ej: FAIL-NEW: 0 FAIL-INPROG: ...)
+            if (
+                message_norm.isdigit()
+                or not message_norm
+                or "FAIL-INPROG:" in message_norm
+                or "WARN-NEW:" in message_norm
+                or "WARN-INPROG:" in message_norm
+                or "INFO:" in message_norm
+                or "PASS:" in message_norm
+            ):
+                continue
+
+            severity = "medium" if level.lower() == "warn" else "high"
+            state_label = f" ({state.lower()})" if state else ""
+            times = f" x {count}" if count else ""
+
+            findings.append({
+                "title": f"ZAP: {message_norm}{state_label}",
+                "description": f"OWASP ZAP reportó el hallazgo '{message_norm}'{state_label}.",
+                "severity": severity,
+                "evidence": f"{stripped}{times}{f' | plugin_id={plugin_id}' if plugin_id else ''}",
+            })
+            detailed_emitted = True
+            continue
+
+        # Resumen AF: FAIL-NEW: 0 ... WARN-NEW: 2 ...
+        summary_match = af_summary_pattern.search(stripped)
+        if summary_match and not summary_emitted and not detailed_emitted:
+            fail_new, fail_inprog, warn_new, warn_inprog = [int(x) for x in summary_match.groups()]
+            total_high = fail_new + fail_inprog
+            total_medium = warn_new + warn_inprog
+
+            if total_high > 0:
+                findings.append({
+                    "title": "ZAP: Vulnerabilities detected (fail)",
+                    "description": f"ZAP reportó {total_high} alertas tipo FAIL.",
+                    "severity": "high",
+                    "evidence": stripped,
+                })
+            if total_medium > 0:
+                findings.append({
+                    "title": "ZAP: Potential vulnerabilities detected (warn)",
+                    "description": f"ZAP reportó {total_medium} alertas tipo WARN.",
+                    "severity": "medium",
+                    "evidence": stripped,
+                })
+            summary_emitted = True
+
+    return findings
+
+def parse_zap_json_report(report_path):
+    findings = []
+
+    try:
+        with open(report_path, "r", encoding="utf-8") as report_file:
+            report = json.load(report_file)
+    except Exception:
+        return findings
+
+    sites = report.get("site", [])
+    if isinstance(sites, dict):
+        sites = [sites]
+
+    for site in sites:
+        alerts = site.get("alerts", []) or []
+        if isinstance(alerts, dict):
+            alerts = [alerts]
+
+        for alert in alerts:
+            riskdesc = str(alert.get("riskdesc", "")).lower()
+            if "informational" in riskdesc or "info" in riskdesc:
+                continue
+
+            severity = "medium"
+            if "high" in riskdesc:
+                severity = "high"
+            elif "medium" in riskdesc:
+                severity = "medium"
+            elif "low" in riskdesc:
+                severity = "low"
+
+            title = alert.get("alert") or alert.get("name") or "ZAP Finding"
+            description = alert.get("desc") or alert.get("solution") or "Hallazgo detectado por OWASP ZAP."
+
+            evidence = []
+            for instance in alert.get("instances", []) or []:
+                uri = instance.get("uri")
+                evidence_text = instance.get("evidence")
+                if uri:
+                    evidence.append(uri)
+                if evidence_text:
+                    evidence.append(evidence_text)
+
+            findings.append({
+                "title": f"ZAP: {title}",
+                "description": description,
+                "severity": severity,
+                "evidence": " | ".join(evidence) if evidence else None,
+            })
+
     return findings
 
 @celery_app.task(name="tasks.run_gobuster_scan", bind=True)

@@ -62,6 +62,13 @@ services:
         condition: service_healthy
     command: celery -A tasks.celery_app worker --loglevel=info
 
+  zap:
+    image: ${ZAP_DOCKER_IMAGE:-ghcr.io/zaproxy/zaproxy:stable}
+    container_name: sectest_zap
+    profiles:
+      - tools
+    command: ["sleep", "infinity"]
+
   frontend:
     build:
       context: ./frontend
@@ -73,7 +80,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_API_URL=/api
     depends_on:
       - backend
 

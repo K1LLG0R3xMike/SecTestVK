@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getScans, cancelScan } from '../services/api';
+import { API_URL } from '../services/api';
 
 const Scans = () => {
   const [scans, setScans] = useState([]);
@@ -109,7 +110,7 @@ const Scans = () => {
                 <div className="flex gap-4">
                     {selectedScan.status === 'completed' && (
                       <a 
-                        href={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/scans/${selectedScan.id}/report/pdf`}
+                        href={`${API_URL}/scans/${selectedScan.id}/report/pdf`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="bg-primary text-on-primary hover:brightness-110 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20"

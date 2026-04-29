@@ -32,9 +32,10 @@ Flujo:
 
 - **Orquestación de escaneo (Worker)**
   - Pipeline secuencial para estabilidad y orden de logs.
-  - Herramientas integradas: **Nmap**, **Gobuster**, **WhatWeb**, **SSLScan**, **Nuclei**, **Nikto**.
+  - Herramientas integradas: **Nmap**, **Gobuster**, **WhatWeb**, **SSLScan**, **Nuclei**, **Nikto**, **OWASP ZAP**.
   - Manejo tolerante a fallos: si una herramienta no existe o falla, el scan continúa (se registra en logs).
   - Protección contra wildcard/403/404 constantes en Gobuster (exclude-length por probing).
+  - OWASP ZAP corre como contenedor gestionado por el worker y solo persiste alertas relevantes como findings.
 
 - **Scans + Logs en vivo**
   - Estado del scan (pending/running/completed/failed).
