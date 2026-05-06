@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from typing import List
+import os
 import json
 from ..core.database import get_db
 from ..models import models
@@ -229,13 +230,13 @@ def cancel_scan(scan_id: int, db: Session = Depends(get_db)):
 # ============ ATTACK VECTOR ANALYSIS ENDPOINTS ============
 
 @router.post("/{scan_id}/analyze/vectors")
-def request_attack_vector_analysis(scan_id: int, provider: str = "claude", db: Session = Depends(get_db)):
+def request_attack_vector_analysis(scan_id: int, provider: str = os.getenv("ANALYSIS_PROVIDER", "openclaw"), db: Session = Depends(get_db)):
     """
     Request attack vector analysis for a scan's findings.
     Uses Claude or OpenAI to identify potential attack chains.
     
     - **scan_id**: Scan ID to analyze
-    - **provider**: AI provider (claude or openai)
+    - **provider**: AI provider (claude, openai, openclaw)
     
     Returns task ID for polling results.
     """

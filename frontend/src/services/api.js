@@ -64,7 +64,7 @@ export const downloadReportPdf = async (scanId) => {
   return response.data;
 };
 
-export const requestAttackVectorAnalysis = async (scanId, provider = 'claude') => {
+export const requestAttackVectorAnalysis = async (scanId, provider = 'openclaw') => {
   const response = await api.post(`/scans/${scanId}/analyze/vectors`, null, {
     params: { provider },
   });
