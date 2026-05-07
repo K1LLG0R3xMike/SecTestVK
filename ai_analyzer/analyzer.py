@@ -9,11 +9,56 @@ from openai import OpenAI
 class AttackVectorAnalyzer:
     def __init__(self):
         self.claude_api_key = os.getenv("CLAUDE_API_KEY")
+        self.openclaw_gateway_url = os.getenv("OPENCLAW_GATEWAY_URL", "http://openclaw:18789")
+        self.openclaw_gateway_token = os.getenv("OPENCLAW_GATEWAY_TOKEN") or os.getenv("OPENCLAW_GATEWAY_PASSWORD")
         self.openai_client = None
         
         # Initialize OpenAI if API key exists
         if os.getenv("OPENAI_API_KEY"):
             self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    def _strip_openclaw_prelude(self, response_text: str) -> str:
+        marker = "BEGIN_ANALYSIS"
+        marker_idx = response_text.find(marker)
+        if marker_idx != -1:
+            cleaned = response_text[marker_idx + len(marker):].strip()
+            return cleaned or response_text.strip()
+
+        lines = response_text.splitlines()
+
+        def is_prelude_line(line: str) -> bool:
+            lowered = line.strip().lower()
+            if not lowered:
+                return True
+            return any(
+                token in lowered
+                for token in [
+                    "who am i",
+                    "who are you",
+                    "to get started",
+                    "identity.md",
+                    "user.md",
+                    "my emoji",
+                    "my vibe",
+                    "my nature",
+                    "your name",
+                    "what name you'd like",
+                    "what name you’d like",
+                ]
+            )
+
+        analysis_start = re.compile(r"^\s*(risk\b|risk score\b|summary\b|attack vectors\b|remediation\b|overview\b|top risks\b)")
+
+        idx = 0
+        while idx < len(lines):
+            if analysis_start.search(lines[idx]):
+                break
+            if not is_prelude_line(lines[idx]):
+                break
+            idx += 1
+
+        cleaned = "\n".join(lines[idx:]).strip()
+        return cleaned or response_text.strip()
 
     def _findings_to_text(self, findings: List[Finding]) -> str:
         """Convert findings list to readable format for LLM."""
@@ -27,8 +72,8 @@ class AttackVectorAnalyzer:
             text += "\n"
         return text
 
-    def _parse_claude_response(self, response_text: str, scan_id: int) -> AnalysisResponse:
-        """Parse Claude response into structured format."""
+    def _parse_claude_response(self, response_text: str, scan_id: int, provider: str = "claude") -> AnalysisResponse:
+        """Parse LLM response into structured format."""
         attack_vectors = []
         recommendations = []
         risk_score = 5.0
@@ -94,7 +139,7 @@ class AttackVectorAnalyzer:
         
         return AnalysisResponse(
             scan_id=scan_id,
-            provider="claude",
+            provider=provider,
             attack_vectors=attack_vectors,
             risk_score=risk_score,
             summary=summary,
@@ -105,7 +150,7 @@ class AttackVectorAnalyzer:
     def _parse_openai_response(self, response_text: str, scan_id: int) -> AnalysisResponse:
         """Parse OpenAI response (similar to Claude)."""
         # Same parsing logic as Claude for consistency
-        return self._parse_claude_response(response_text, scan_id)
+        return self._parse_claude_response(response_text, scan_id, provider="openai")
 
     async def analyze_with_claude(self, findings: List[Finding], scan_id: int) -> AnalysisResponse:
         """Analyze findings using Claude API."""
@@ -161,7 +206,7 @@ Focus on realistic attack chains and how findings could be chained together for 
             if not response_text:
                 response_text = "Analysis completed"
 
-            return self._parse_claude_response(response_text, scan_id)
+            return self._parse_claude_response(response_text, scan_id, provider="claude")
         
         except Exception as e:
             raise Exception(f"Claude API error: {str(e)}")
@@ -211,12 +256,76 @@ Focus on realistic attack chains and how findings could be chained together for 
         except Exception as e:
             raise Exception(f"OpenAI API error: {str(e)}")
 
+    async def analyze_with_openclaw(self, findings: List[Finding], scan_id: int) -> AnalysisResponse:
+        if not self.openclaw_gateway_token:
+            raise ValueError("OpenClaw gateway token not configured (OPENCLAW_GATEWAY_TOKEN)")
+
+        findings_text = self._findings_to_text(findings)
+        prompt = f"""You are a senior security researcher and penetration tester. Analyze the following detected security findings and identify potential attack vectors.
+
+{findings_text}
+
+Provide analysis in this format:
+
+RISK SCORE: [1-10]
+SUMMARY: [Brief overview of overall risk posture]
+
+ATTACK VECTORS:
+1. [Vector Name] - [Description and impact]
+2. [Vector Name] - [Description and impact]
+3. [Vector Name] - [Description and impact]
+
+REMEDIATION RECOMMENDATIONS:
+1. [Priority action]
+2. [Priority action]
+3. [Priority action]
+
+Focus on realistic attack chains and how findings could be chained together for maximum impact.
+"""
+
+        try:
+            response = requests.post(
+                f"{self.openclaw_gateway_url.rstrip('/')}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {self.openclaw_gateway_token}",
+                    "Content-Type": "application/json",
+                    "x-openclaw-agent-id": "main",
+                },
+                json={
+                    "model": "openclaw:main",
+                    "user": "sectestvk-ai-analyzer",
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Name: SecTestVK\nNature: security analyst\nVibe: professional\nEmoji: none\n\n"
+                            + prompt
+                        },
+                    ],
+                    "max_tokens": 1024,
+                    "stream": False,
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+            choices = payload.get("choices") or []
+            message = (choices[0].get("message") or {}) if choices else {}
+            response_text = (message.get("content") or "").strip() or "Analysis completed"
+            response_text = self._strip_openclaw_prelude(response_text)
+            return self._parse_claude_response(response_text, scan_id, provider="openclaw")
+
+        except Exception as e:
+            raise Exception(f"OpenClaw gateway error: {str(e)}")
+
     async def analyze(self, findings: List[Finding], scan_id: int, provider: str = "claude") -> AnalysisResponse:
         """Main analysis method - routes to appropriate provider."""
         if provider == "claude":
             return await self.analyze_with_claude(findings, scan_id)
         elif provider == "openai":
             return await self.analyze_with_openai(findings, scan_id)
+        elif provider == "openclaw":
+            return await self.analyze_with_openclaw(findings, scan_id)
         else:
             raise ValueError(f"Unknown provider: {provider}")
 

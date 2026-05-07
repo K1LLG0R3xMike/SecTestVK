@@ -26,7 +26,8 @@ async def health():
         "status": "healthy",
         "service": "attack_vector_analyzer",
         "claude_available": bool(os.getenv("CLAUDE_API_KEY")),
-        "openai_available": bool(os.getenv("OPENAI_API_KEY"))
+        "openai_available": bool(os.getenv("OPENAI_API_KEY")),
+        "openclaw_available": bool(os.getenv("OPENCLAW_GATEWAY_TOKEN") or os.getenv("OPENCLAW_GATEWAY_PASSWORD"))
     }
 
 @app.post("/analyze", response_model=AnalysisResponse)
@@ -73,6 +74,11 @@ async def get_available_providers():
                 "name": "openai",
                 "available": bool(os.getenv("OPENAI_API_KEY")),
                 "model": "gpt-4o-mini"
+            },
+            {
+                "name": "openclaw",
+                "available": bool(os.getenv("OPENCLAW_GATEWAY_TOKEN") or os.getenv("OPENCLAW_GATEWAY_PASSWORD")),
+                "model": "openclaw:main"
             }
         ]
     }

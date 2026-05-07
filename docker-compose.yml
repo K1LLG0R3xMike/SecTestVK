@@ -87,6 +87,22 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: sectest_openclaw
+    user: "0:0"
+    environment:
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - OPENCLAW_DISABLE_BONJOUR=1
+      - OLLAMA_HOST=https://ollama.com
+      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
+    ports:
+      - "18789:18789"
+    volumes:
+      - openclaw_data:/root/.openclaw
+    command: >
+      sh -lc "if [ ! -f /root/.openclaw/agents/main/agent/auth-profiles.json ]; then node dist/index.js onboard --non-interactive --accept-risk --mode local --no-install-daemon --skip-channels --skip-search --skip-skills --skip-ui --skip-health --gateway-auth token --gateway-bind lan --gateway-port 18789 --gateway-token \"$$OPENCLAW_GATEWAY_TOKEN\" --auth-choice ollama; fi && node dist/index.js config set --batch-json '[{\"path\":\"gateway.mode\",\"value\":\"local\"},{\"path\":\"gateway.bind\",\"value\":\"lan\"},{\"path\":\"gateway.http.endpoints.chatCompletions.enabled\",\"value\":true},{\"path\":\"gateway.auth.mode\",\"value\":\"token\"}]' && node dist/index.js config set gateway.auth.token \"$$OPENCLAW_GATEWAY_TOKEN\" && exec node dist/index.js gateway run --allow-unconfigured --auth token --bind lan --port 18789 --token \"$$OPENCLAW_GATEWAY_TOKEN\""
+
   frontend:
     build:
       context: ./frontend
@@ -104,3 +120,4 @@ services:
 
 volumes:
   postgres_data:
+  openclaw_data:

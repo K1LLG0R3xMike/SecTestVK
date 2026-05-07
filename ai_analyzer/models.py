@@ -21,7 +21,7 @@ class Finding(BaseModel):
 class AnalysisRequest(BaseModel):
     findings: List[Finding]
     scan_id: int
-    provider: str = "claude"  # claude or openai
+    provider: str = "claude"
 
 class AttackVector(BaseModel):
     name: str

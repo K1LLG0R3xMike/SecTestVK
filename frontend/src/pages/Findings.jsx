@@ -106,7 +106,7 @@ const Findings = () => {
     }
 
     try {
-      const result = await requestAttackVectorAnalysis(scanId, 'claude');
+      const result = await requestAttackVectorAnalysis(scanId, 'openclaw');
       if (result.status === 'cached' && result.analysis) {
         setAnalysisByScan(prev => ({ ...prev, [scanId]: result.analysis }));
         setAnalysisLoadingByScan(prev => ({ ...prev, [scanId]: false }));
