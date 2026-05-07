@@ -19,8 +19,30 @@ const Projects = () => {
     whatweb: true,
     nikto: false,
     sslscan: true,
-    zap: false
+    zap: false,
+    katana: true,
+    ffuf: false,
+    kiterunner: false,
   });
+
+  const TOOL_META = {
+    nmap:        { label: 'Nmap',        desc: 'Port & service discovery',   icon: 'wifi_tethering', category: 'network' },
+    sslscan:     { label: 'SSLScan',     desc: 'TLS/SSL config analysis',    icon: 'lock',            category: 'network' },
+    gobuster:    { label: 'Gobuster',    desc: 'Directory brute-force',      icon: 'folder_open',     category: 'web'     },
+    whatweb:     { label: 'WhatWeb',     desc: 'Tech stack fingerprinting',  icon: 'fingerprint',     category: 'web'     },
+    nikto:       { label: 'Nikto',       desc: 'Web server vuln scan',       icon: 'bug_report',      category: 'web'     },
+    zap:         { label: 'OWASP ZAP',   desc: 'Active web app scan',        icon: 'security_scanner',category: 'web'     },
+    nuclei:      { label: 'Nuclei',      desc: 'Template-based CVE scan',    icon: 'manage_search',   category: 'web'     },
+    katana:      { label: 'Katana',      desc: 'Web crawler & spider',       icon: 'travel_explore',  category: 'api'     },
+    ffuf:        { label: 'ffuf',        desc: 'API endpoint fuzzer',        icon: 'api',             category: 'api'     },
+    kiterunner:  { label: 'Kiterunner',  desc: 'API route discovery',        icon: 'route',           category: 'api'     },
+  };
+
+  const SCAN_CATEGORIES = [
+    { key: 'network', label: 'Network',        icon: 'lan'            },
+    { key: 'web',     label: 'Web',            icon: 'language'       },
+    { key: 'api',     label: 'API Discovery',  icon: 'api'            },
+  ];
 
   const fetchData = async () => {
     try {
@@ -111,28 +133,68 @@ const Projects = () => {
 
       {showSettingsModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="bg-surface-container-high w-full max-w-lg rounded-2xl p-8 shadow-2xl border border-outline-variant/10">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-surface-container-high w-full max-w-xl rounded-2xl p-8 shadow-2xl border border-outline-variant/10 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-2">
               <h2 className="text-2xl font-headline font-bold">Scan Settings</h2>
-              <button onClick={() => setShowSettingsModal(false)} className="text-on-surface-variant"><span className="material-symbols-outlined">close</span></button>
+              <button onClick={() => setShowSettingsModal(false)} className="text-on-surface-variant hover:text-on-surface transition-colors">
+                <span className="material-symbols-outlined">close</span>
+              </button>
             </div>
-            <p className="text-sm text-on-surface-variant mb-6 font-mono text-primary font-bold">{selectedTarget?.url_or_ip}</p>
-            
-            <div className="grid grid-cols-2 gap-3 mb-8">
-              {Object.keys(scanConfig).map((tool) => (
-                <label key={tool} className="flex items-center gap-3 p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl cursor-pointer hover:border-primary/40 transition-all">
-                  <input type="checkbox" checked={scanConfig[tool]} onChange={() => setScanConfig(prev => ({ ...prev, [tool]: !prev[tool] }))} className="w-4 h-4 accent-primary" />
-                  <span className="text-sm font-bold uppercase opacity-80">{tool}</span>
-                </label>
+            <p className="text-xs font-mono text-primary mb-6 truncate">{selectedTarget?.url_or_ip}</p>
+
+            <div className="space-y-5 mb-8">
+              {SCAN_CATEGORIES.map(cat => (
+                <div key={cat.key}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-sm text-on-surface-variant">{cat.icon}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{cat.label}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(TOOL_META)
+                      .filter(([, meta]) => meta.category === cat.key)
+                      .map(([tool, meta]) => (
+                        <label
+                          key={tool}
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${
+                            scanConfig[tool]
+                              ? 'bg-primary/10 border-primary/40'
+                              : 'bg-surface-container-low border-outline-variant/20 hover:border-outline-variant/40'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={scanConfig[tool]}
+                            onChange={() => setScanConfig(prev => ({ ...prev, [tool]: !prev[tool] }))}
+                            className="w-4 h-4 accent-primary shrink-0"
+                          />
+                          <span className="material-symbols-outlined text-sm text-on-surface-variant shrink-0">{meta.icon}</span>
+                          <div className="min-w-0">
+                            <p className={`text-xs font-bold uppercase leading-tight ${scanConfig[tool] ? 'text-primary' : ''}`}>{meta.label}</p>
+                            <p className="text-[10px] text-on-surface-variant leading-tight truncate">{meta.desc}</p>
+                          </div>
+                        </label>
+                      ))}
+                  </div>
+                </div>
               ))}
             </div>
-            
-            <button 
+
+            <div className="flex items-center justify-between text-xs text-on-surface-variant mb-4 px-1">
+              <span>{Object.values(scanConfig).filter(Boolean).length} tools selected</span>
+              <button
+                onClick={() => setScanConfig(prev => Object.fromEntries(Object.keys(prev).map(k => [k, false])))}
+                className="hover:text-on-surface transition-colors"
+              >
+                Clear all
+              </button>
+            </div>
+
+            <button
               onClick={() => { setShowSettingsModal(false); handleStartScan(selectedTarget.id); }}
-              className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2"
+              className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:brightness-110 transition-all"
             >
               <span className="material-symbols-outlined">bolt</span>
-              Launch Optimized Pipeline
+              Launch Pipeline
             </button>
           </div>
         </div>

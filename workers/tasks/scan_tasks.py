@@ -109,33 +109,45 @@ def run_combined_scan(self, scan_id, target: str, config: dict):
     domain_target = target.replace("https://", "").replace("http://", "").split("/")[0]
     
     # Ejecutar herramientas secuencialmente para evitar sobrecarga y conflictos
+    # Progreso distribuido entre 10 herramientas: network → web → api discovery → vuln scan
     if config.get("nmap"):
-        update_scan_status(scan_id, "running", progress=10)
+        update_scan_status(scan_id, "running", progress=8)
         run_tool_safely(scan_id, "nmap", run_nmap_tool, domain_target)
-    
+
     if config.get("gobuster") and target.startswith("http"):
-        update_scan_status(scan_id, "running", progress=30)
+        update_scan_status(scan_id, "running", progress=18)
         run_tool_safely(scan_id, "gobuster", run_gobuster_tool, target)
 
+    if config.get("katana") and target.startswith("http"):
+        update_scan_status(scan_id, "running", progress=28)
+        run_tool_safely(scan_id, "katana", run_katana_tool, target)
+
+    if config.get("ffuf") and target.startswith("http"):
+        update_scan_status(scan_id, "running", progress=38)
+        run_tool_safely(scan_id, "ffuf", run_ffuf_tool, target)
+
+    if config.get("kiterunner") and target.startswith("http"):
+        update_scan_status(scan_id, "running", progress=48)
+        run_tool_safely(scan_id, "kr", run_kiterunner_tool, target)
+
     if config.get("whatweb") and target.startswith("http"):
-        update_scan_status(scan_id, "running", progress=50)
+        update_scan_status(scan_id, "running", progress=56)
         run_tool_safely(scan_id, "whatweb", run_whatweb_tool, target)
 
     if config.get("sslscan"):
-        update_scan_status(scan_id, "running", progress=60)
+        update_scan_status(scan_id, "running", progress=64)
         run_tool_safely(scan_id, "sslscan", run_sslscan_tool, domain_target)
 
     if config.get("zap") and target.startswith("http"):
-        update_scan_status(scan_id, "running", progress=75)
+        update_scan_status(scan_id, "running", progress=73)
         run_tool_safely(scan_id, "docker", run_zap_tool, target)
 
     if config.get("nuclei") and target.startswith("http"):
-        update_scan_status(scan_id, "running", progress=80)
+        update_scan_status(scan_id, "running", progress=82)
         run_tool_safely(scan_id, "nuclei", run_nuclei_tool, target)
 
     if config.get("nikto") and target.startswith("http"):
         update_scan_status(scan_id, "running", progress=90)
-        # Nikto puede estar en /usr/local/bin/nikto o nikto.pl
         tool_cmd = "nikto" if shutil.which("nikto") else "/opt/nikto/program/nikto.pl"
         run_tool_safely(scan_id, tool_cmd, run_nikto_tool, target)
 
@@ -616,6 +628,178 @@ def parse_zap_json_report(report_path):
             })
 
     return findings
+
+def run_katana_tool(scan_id, target):
+    append_scan_logs(scan_id, f"[KATANA] Starting web crawler (depth 3)...\n")
+    process = subprocess.Popen(
+        ["katana", "-u", target, "-d", "3", "-silent", "-nc"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+    )
+    output = ""
+    for line in process.stdout:
+        output += line
+        append_scan_logs(scan_id, f"[KATANA] {line}")
+    process.wait()
+    findings = parse_katana_output(output)
+    save_findings(scan_id, findings, "katana")
+
+
+def run_ffuf_tool(scan_id, target):
+    import tempfile as _tmpmod
+    wordlist = "/opt/wordlists/api-endpoints.txt"
+    if not os.path.exists(wordlist):
+        wordlist = "/opt/wordlists/common.txt"
+
+    output_file = _tmpmod.mktemp(suffix=".json")
+    append_scan_logs(scan_id, f"[FFUF] Starting API endpoint fuzzing with {wordlist}...\n")
+    cmd = [
+        "ffuf",
+        "-u", f"{target.rstrip('/')}/FUZZ",
+        "-w", wordlist,
+        "-mc", "200,201,204,301,302,307,401,403",
+        "-t", "50",
+        "-o", output_file,
+        "-of", "json",
+        "-s",
+    ]
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    for line in process.stdout:
+        append_scan_logs(scan_id, f"[FFUF] {line}")
+    process.wait()
+    findings = parse_ffuf_output(output_file)
+    save_findings(scan_id, findings, "ffuf")
+    try:
+        os.remove(output_file)
+    except Exception:
+        pass
+
+
+def run_kiterunner_tool(scan_id, target):
+    wordlist = "/opt/wordlists/api-endpoints.txt"
+    if not os.path.exists(wordlist):
+        wordlist = "/opt/wordlists/common.txt"
+
+    append_scan_logs(scan_id, f"[KITERUNNER] Starting API route discovery...\n")
+    cmd = [
+        "kr", "brute", target,
+        "-w", wordlist,
+        "--fail-status-codes", "404",
+        "-x", "20",
+        "--timeout", "3s",
+        "-o", "text",        # output limpio sin ANSI ni progress bar
+        "--progress=false",  # deshabilitar la barra de progreso explícitamente
+    ]
+    # stderr separado: la barra de progreso de kr va a stderr y corrompe el stream
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+    output = ""
+    for line in process.stdout:
+        clean = line.strip()
+        if clean:
+            output += line
+            append_scan_logs(scan_id, f"[KITERUNNER] {clean}\n")
+    process.wait()
+    findings = parse_kiterunner_output(output)
+    append_scan_logs(scan_id, f"[KITERUNNER] Found {len(findings)} API routes.\n")
+    save_findings(scan_id, findings, "kiterunner")
+
+
+def parse_katana_output(output):
+    from urllib.parse import urlparse
+    findings = []
+    seen_paths = set()
+    for line in output.split("\n"):
+        url = line.strip()
+        if not url or not url.startswith("http"):
+            continue
+        try:
+            path = urlparse(url).path
+        except Exception:
+            continue
+        if not path or path == "/" or path in seen_paths:
+            continue
+        seen_paths.add(path)
+        severity = "info"
+        path_lower = path.lower()
+        if any(kw in path_lower for kw in ["admin", "config", "debug", "internal", "secret", "backup", "token", "key"]):
+            severity = "medium"
+        elif any(kw in path_lower for kw in ["api", "v1", "v2", "v3", "graphql", "rest", "swagger", "openapi"]):
+            severity = "low"
+        findings.append({
+            "title": f"Katana: Endpoint Crawled {path}",
+            "description": f"Katana crawler discovered '{path}' via web crawling.",
+            "severity": severity,
+            "evidence": url,
+        })
+    return findings
+
+
+def parse_ffuf_output(output_file):
+    findings = []
+    try:
+        with open(output_file, "r") as f:
+            data = json.load(f)
+        for result in data.get("results", []):
+            status = result.get("status", 0)
+            url = result.get("url", "")
+            length = result.get("length", 0)
+            if not url:
+                continue
+            from urllib.parse import urlparse
+            path = urlparse(url).path or "/"
+            severity = "info"
+            path_lower = path.lower()
+            if any(kw in path_lower for kw in [".env", "admin", "config", "secret", "token", "key", "debug", "backup"]):
+                severity = "medium"
+            elif status == 200:
+                severity = "low"
+            findings.append({
+                "title": f"FFUF: Endpoint [{status}] {path}",
+                "description": f"ffuf discovered '{path}' responding HTTP {status} (size: {length} bytes).",
+                "severity": severity,
+                "evidence": url,
+            })
+    except Exception:
+        pass
+    return findings
+
+
+def parse_kiterunner_output(output):
+    from urllib.parse import urlparse
+    findings = []
+    # Formato text de kiterunner: "GET 200 [body, words, lines] https://target/path"
+    # Los espacios dentro de los corchetes son variables, por eso usamos [\s\S]*?
+    pattern = re.compile(
+        r"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+(\d+)\s+\[[\d,\s]+\]\s+(https?://\S+)"
+    )
+    seen = set()
+    for line in output.split("\n"):
+        # Quitar cualquier residuo de ANSI por si acaso
+        clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
+        match = pattern.search(clean_line)
+        if not match:
+            continue
+        method, status_code, url = match.groups()
+        status = int(status_code)
+        if status == 404:
+            continue
+        path = urlparse(url).path or "/"
+        key = f"{method}:{path}"
+        if key in seen:
+            continue
+        seen.add(key)
+        severity = "info"
+        if method in ("POST", "PUT", "DELETE", "PATCH"):
+            severity = "medium"
+        elif status == 200:
+            severity = "low"
+        findings.append({
+            "title": f"Kiterunner: API Route [{method} {status}] {path}",
+            "description": f"Kiterunner discovered API endpoint '{path}' via {method} (HTTP {status}).",
+            "severity": severity,
+            "evidence": f"{method} {url} [{status_code}]",
+        })
+    return findings
+
 
 @celery_app.task(name="tasks.run_gobuster_scan", bind=True)
 def run_gobuster_scan(self, target: str):
