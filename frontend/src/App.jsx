@@ -6,6 +6,7 @@ import Projects from './pages/Projects';
 import Scans from './pages/Scans';
 import Findings from './pages/Findings';
 import Reports from './pages/Reports';
+import Scripts from './pages/Scripts';
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <Route path="/scans" element={<Scans />} />
           <Route path="/findings" element={<Findings />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/scripts" element={<Scripts />} />
         </Routes>
       </Layout>
     </Router>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getTargets, createTarget, startScan, getScans } from '../services/api';
+import { getTargets, createTarget, startScan, getScans, getScripts } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const Projects = () => {
@@ -12,6 +12,8 @@ const Projects = () => {
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [scanningId, setScanningId] = useState(null);
   const [newTarget, setNewTarget] = useState({ name: '', url_or_ip: '', description: '' });
+  const [availableScripts, setAvailableScripts] = useState([]);
+  const [selectedScriptIds, setSelectedScriptIds] = useState([]);
   const [scanConfig, setScanConfig] = useState({
     nmap: true,
     gobuster: true,
@@ -64,6 +66,12 @@ const Projects = () => {
     const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (showSettingsModal) {
+      getScripts().then(setAvailableScripts).catch(() => setAvailableScripts([]));
+    }
+  }, [showSettingsModal]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -189,8 +197,48 @@ const Projects = () => {
               </button>
             </div>
 
+            {availableScripts.length > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-sm text-on-surface-variant">code</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Custom Scripts</span>
+                </div>
+                <div className="space-y-2">
+                  {availableScripts.map(script => (
+                    <label
+                      key={script.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all ${
+                        selectedScriptIds.includes(script.id)
+                          ? 'bg-primary/10 border-primary/40'
+                          : 'bg-surface-container-low border-outline-variant/20 hover:border-outline-variant/40'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedScriptIds.includes(script.id)}
+                        onChange={() => setSelectedScriptIds(prev =>
+                          prev.includes(script.id) ? prev.filter(id => id !== script.id) : [...prev, script.id]
+                        )}
+                        className="w-4 h-4 accent-primary shrink-0"
+                      />
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant shrink-0">
+                        {script.language === 'python' ? 'terminal' : 'code'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className={`text-xs font-bold uppercase leading-tight ${selectedScriptIds.includes(script.id) ? 'text-primary' : ''}`}>{script.name}</p>
+                        <p className="text-[10px] text-on-surface-variant leading-tight truncate">{script.language} · {script.description || 'No description'}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <button
-              onClick={() => { setShowSettingsModal(false); handleStartScan(selectedTarget.id); }}
+              onClick={() => {
+                setShowSettingsModal(false);
+                handleStartScan(selectedTarget.id, { ...scanConfig, custom_scripts: selectedScriptIds });
+              }}
               className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 hover:brightness-110 transition-all"
             >
               <span className="material-symbols-outlined">bolt</span>

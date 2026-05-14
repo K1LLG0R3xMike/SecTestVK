@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from .api import targets, scans
+from .api import targets, scans, scripts
 from .core.database import engine, Base
 from .models import models
 
@@ -42,6 +42,7 @@ app.add_middleware(
 # Incluir Routers
 app.include_router(targets.router)
 app.include_router(scans.router)
+app.include_router(scripts.router)
 
 @app.get("/")
 async def root():

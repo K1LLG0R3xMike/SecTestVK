@@ -81,4 +81,40 @@ export const getAttackVectorAnalysis = async (scanId) => {
   return response.data;
 };
 
+// --- Tool Configs ---
+export const getToolConfigs = async () => {
+  const response = await api.get('/tool-configs/');
+  return response.data;
+};
+
+export const updateToolConfig = async (toolName, data) => {
+  const response = await api.put(`/tool-configs/${toolName}`, data);
+  return response.data;
+};
+
+export const resetToolConfig = async (toolName) => {
+  const response = await api.post(`/tool-configs/${toolName}/reset`);
+  return response.data;
+};
+
+// --- Custom Scripts ---
+export const getScripts = async () => {
+  const response = await api.get('/scripts/');
+  return response.data;
+};
+
+export const createScript = async (data) => {
+  const response = await api.post('/scripts/', data);
+  return response.data;
+};
+
+export const updateScript = async (id, data) => {
+  const response = await api.put(`/scripts/${id}`, data);
+  return response.data;
+};
+
+export const deleteScript = async (id) => {
+  await api.delete(`/scripts/${id}`);
+};
+
 export default api;

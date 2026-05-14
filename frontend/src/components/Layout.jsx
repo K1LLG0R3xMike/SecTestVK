@@ -10,6 +10,7 @@ const Layout = ({ children }) => {
     { name: 'Scans', path: '/scans', icon: 'radar' },
     { name: 'Findings', path: '/findings', icon: 'security' },
     { name: 'Reports', path: '/reports', icon: 'assessment' },
+    { name: 'Scripts', path: '/scripts', icon: 'code' },
   ];
 
   const isActive = (path) => location.pathname === path;

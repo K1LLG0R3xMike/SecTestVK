@@ -3,8 +3,9 @@ import json
 import re
 import tempfile
 import shutil
+import shlex
 from .celery_app import celery_app
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
@@ -34,6 +35,22 @@ class Finding(Base):
     tool = Column(String)
     evidence = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class ToolConfig(Base):
+    __tablename__ = "tool_configs"
+    id = Column(Integer, primary_key=True, index=True)
+    tool_name = Column(String, unique=True)
+    command_template = Column(Text)
+    enabled = Column(Boolean, default=True)
+
+class CustomScript(Base):
+    __tablename__ = "custom_scripts"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String)
+    language = Column(String)
+    code = Column(Text)
+    enabled = Column(Boolean, default=True)
+    timeout = Column(Integer, default=60)
 
 # Configuración de la DB para el worker
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://sectest:sectest123@db:5432/sectest_vk")
@@ -151,14 +168,30 @@ def run_combined_scan(self, scan_id, target: str, config: dict):
         tool_cmd = "nikto" if shutil.which("nikto") else "/opt/nikto/program/nikto.pl"
         run_tool_safely(scan_id, tool_cmd, run_nikto_tool, target)
 
+    # Ejecutar custom scripts habilitados en la config del scan
+    script_ids = config.get("custom_scripts", [])
+    if script_ids:
+        session = SessionLocal()
+        try:
+            scripts = session.query(CustomScript).filter(
+                CustomScript.id.in_(script_ids),
+                CustomScript.enabled == True
+            ).all()
+            for script in scripts:
+                update_scan_status(scan_id, "running", progress=92)
+                run_custom_script(scan_id, script, target)
+        finally:
+            session.close()
+
     update_scan_status(scan_id, "completed")
     append_scan_logs(scan_id, "--- Pipeline Execution Finished ---\n")
     return {"status": "completed"}
 
 def run_nmap_tool(scan_id, target):
     append_scan_logs(scan_id, f"[NMAP] Starting scan...\n")
+    cmd = get_tool_cmd("nmap", target, ["nmap", "-sV", "-T4", "-F", "-v", target])
     process = subprocess.Popen(
-        ["nmap", "-sV", "-T4", "-F", "-v", target],
+        cmd,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
     output = ""
@@ -186,8 +219,8 @@ def run_gobuster_tool(scan_id, target):
     except Exception as e:
         append_scan_logs(scan_id, f"[GOBUSTER] Wildcard probe failed: {str(e)}\n")
 
-    cmd = ["gobuster", "dir", "-u", target, "-w", "/opt/wordlists/common.txt", "-t", "50", "-v", "--no-error"]
-    
+    cmd = get_tool_cmd("gobuster", target, ["gobuster", "dir", "-u", target, "-w", "/opt/wordlists/common.txt", "-t", "50", "-v", "--no-error"])
+
     if exclude_lengths:
         cmd.extend(["--exclude-length", ",".join(exclude_lengths)])
         append_scan_logs(scan_id, f"[GOBUSTER] Excluding lengths: {','.join(exclude_lengths)}\n")
@@ -204,7 +237,8 @@ def run_gobuster_tool(scan_id, target):
 
 def run_whatweb_tool(scan_id, target):
     append_scan_logs(scan_id, f"[WHATWEB] Identifying technologies...\n")
-    result = subprocess.run(["whatweb", "-v", target], capture_output=True, text=True)
+    cmd = get_tool_cmd("whatweb", target, ["whatweb", "-v", target])
+    result = subprocess.run(cmd, capture_output=True, text=True)
     append_scan_logs(scan_id, f"[WHATWEB] Output captured.\n")
     
     findings = []
@@ -228,7 +262,8 @@ def run_whatweb_tool(scan_id, target):
 
 def run_sslscan_tool(scan_id, target):
     append_scan_logs(scan_id, f"[SSLSCAN] Testing SSL/TLS configuration...\n")
-    result = subprocess.run(["sslscan", "--no-colour", target], capture_output=True, text=True)
+    cmd = get_tool_cmd("sslscan", target, ["sslscan", "--no-colour", target])
+    result = subprocess.run(cmd, capture_output=True, text=True)
     append_scan_logs(scan_id, f"[SSLSCAN] Output captured.\n")
     
     findings = []
@@ -335,14 +370,14 @@ def run_nuclei_tool(scan_id, target):
     # -mhe 3: max host errors antes de saltar
     # -H: User-Agent personalizado para evitar bloqueos básicos
     # -passive: si el target falla, intentar modo pasivo
+    default_nuclei_cmd = [
+        "nuclei", "-u", target,
+        "-severity", "low,medium,high,critical",
+        "-no-color", "-ni", "-stats", "-timeout", "10", "-retries", "2", "-mhe", "10",
+        "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    ]
     process = subprocess.Popen(
-        [
-            "nuclei", "-u", target, 
-            "-severity", "low,medium,high,critical", 
-            "-no-color", "-ni", "-stats", "-timeout", "10", "-retries", "2",
-            "-mhe", "10",
-            "-H", "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ],
+        get_tool_cmd("nuclei", target, default_nuclei_cmd),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
     
@@ -377,8 +412,9 @@ def run_nikto_tool(scan_id, target):
     append_scan_logs(scan_id, f"[NIKTO] Starting web server vulnerability scan using {tool_cmd}...\n")
     # Nikto a veces tarda mucho, limitamos el escaneo
     # Aseguramos que los logs fluyan correctamente usando -Display V (verbose)
+    default_nikto_cmd = [tool_cmd, "-h", target, "-Tuning", "1,2,3,4,5,7,8,9,0", "-nointeractive", "-Display", "V"]
     process = subprocess.Popen(
-        [tool_cmd, "-h", target, "-Tuning", "1,2,3,4,5,7,8,9,0", "-nointeractive", "-Display", "V"],
+        get_tool_cmd("nikto", target, default_nikto_cmd),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
     
@@ -410,12 +446,90 @@ def run_nikto_tool(scan_id, target):
     process.wait()
     save_findings(scan_id, findings, "nikto")
 
+def get_tool_cmd(tool_name, target, default_cmd_list):
+    """Return the command list for a tool, using a DB override if one exists."""
+    session = SessionLocal()
+    try:
+        tc = session.query(ToolConfig).filter(ToolConfig.tool_name == tool_name).first()
+        if tc and tc.command_template:
+            rendered = tc.command_template.replace("{target}", target)
+            return shlex.split(rendered)
+    except Exception as e:
+        pass
+    finally:
+        session.close()
+    return default_cmd_list
+
+
+def run_custom_script(scan_id, script, target):
+    """Execute a CustomScript object and save its JSON-line findings."""
+    ext = ".py" if script.language == "python" else ".sh"
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=ext, delete=False)
+    try:
+        tmp.write(script.code)
+        tmp.close()
+        os.chmod(tmp.name, 0o755)
+
+        cmd = ["python3", tmp.name, target] if script.language == "python" else ["bash", tmp.name, target]
+        append_scan_logs(scan_id, f"[SCRIPT:{script.name}] Running ({script.language}, timeout {script.timeout}s)...\n")
+
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            stdout, stderr = process.communicate(timeout=script.timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+            append_scan_logs(scan_id, f"[SCRIPT:{script.name}] Timeout after {script.timeout}s\n")
+
+        if stderr.strip():
+            append_scan_logs(scan_id, f"[SCRIPT:{script.name}] stderr: {stderr[:500]}\n")
+
+        findings = parse_script_output(stdout)
+        save_findings(scan_id, findings, f"script:{script.name}")
+        append_scan_logs(scan_id, f"[SCRIPT:{script.name}] Saved {len(findings)} findings.\n")
+    except Exception as e:
+        append_scan_logs(scan_id, f"[SCRIPT:{script.name}] Error: {str(e)}\n")
+    finally:
+        try:
+            os.remove(tmp.name)
+        except Exception:
+            pass
+
+
+def parse_script_output(stdout):
+    """Parse JSON-line output from custom scripts into findings dicts."""
+    findings = []
+    valid_severities = {"critical", "high", "medium", "low", "info"}
+    for line in stdout.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                continue
+            if not all(k in data for k in ("title", "description", "severity")):
+                continue
+            severity = str(data.get("severity", "info")).lower()
+            if severity not in valid_severities:
+                severity = "info"
+            findings.append({
+                "title": str(data["title"])[:200],
+                "description": str(data["description"]),
+                "severity": severity,
+                "evidence": str(data["evidence"]) if data.get("evidence") else None,
+            })
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return findings
+
+
 def save_findings(scan_id, findings, tool, evidence=None):
     session = SessionLocal()
     try:
         for f in findings:
             session.add(Finding(
-                scan_id=scan_id, title=f["title"], 
+                scan_id=scan_id, title=f["title"],
                 description=f["description"], severity=f["severity"],
                 tool=tool, evidence=f.get("evidence") or evidence
             ))
@@ -631,8 +745,9 @@ def parse_zap_json_report(report_path):
 
 def run_katana_tool(scan_id, target):
     append_scan_logs(scan_id, f"[KATANA] Starting web crawler (depth 3)...\n")
+    cmd = get_tool_cmd("katana", target, ["katana", "-u", target, "-d", "3", "-silent", "-nc"])
     process = subprocess.Popen(
-        ["katana", "-u", target, "-d", "3", "-silent", "-nc"],
+        cmd,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
     )
     output = ""
@@ -652,16 +767,15 @@ def run_ffuf_tool(scan_id, target):
 
     output_file = _tmpmod.mktemp(suffix=".json")
     append_scan_logs(scan_id, f"[FFUF] Starting API endpoint fuzzing with {wordlist}...\n")
-    cmd = [
-        "ffuf",
-        "-u", f"{target.rstrip('/')}/FUZZ",
+    default_ffuf_cmd = [
+        "ffuf", "-u", f"{target.rstrip('/')}/FUZZ",
         "-w", wordlist,
         "-mc", "200,201,204,301,302,307,401,403",
         "-t", "50",
-        "-o", output_file,
-        "-of", "json",
-        "-s",
     ]
+    cmd = get_tool_cmd("ffuf", target, default_ffuf_cmd)
+    # Siempre forzar JSON output — el parser depende de esto
+    cmd += ["-o", output_file, "-of", "json", "-s"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
     for line in process.stdout:
         append_scan_logs(scan_id, f"[FFUF] {line}")
@@ -680,15 +794,17 @@ def run_kiterunner_tool(scan_id, target):
         wordlist = "/opt/wordlists/common.txt"
 
     append_scan_logs(scan_id, f"[KITERUNNER] Starting API route discovery...\n")
-    cmd = [
+    default_kr_cmd = [
         "kr", "brute", target,
         "-w", wordlist,
         "--fail-status-codes", "404",
         "-x", "20",
         "--timeout", "3s",
-        "-o", "text",        # output limpio sin ANSI ni progress bar
-        "--progress=false",  # deshabilitar la barra de progreso explícitamente
     ]
+    cmd = get_tool_cmd("kiterunner", target, default_kr_cmd)
+    # Forzar text output y sin progress bar — el parser depende de esto
+    if "-o" not in cmd:
+        cmd += ["-o", "text", "--progress=false"]
     # stderr separado: la barra de progreso de kr va a stderr y corrompe el stream
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
     output = ""

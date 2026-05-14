@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -59,3 +59,28 @@ class Finding(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     scan = relationship("Scan", back_populates="findings")
+
+
+class ToolConfig(Base):
+    __tablename__ = "tool_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tool_name = Column(String, unique=True, nullable=False, index=True)
+    command_template = Column(Text, nullable=False)
+    description = Column(Text, nullable=True)
+    enabled = Column(Boolean, default=True)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+
+class CustomScript(Base):
+    __tablename__ = "custom_scripts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    language = Column(String, nullable=False, default="python")  # python, bash
+    code = Column(Text, nullable=False)
+    enabled = Column(Boolean, default=True)
+    timeout = Column(Integer, default=60)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

@@ -107,3 +107,45 @@ class DashboardSummary(BaseModel):
     severity_distribution: SeverityDistribution
     recent_findings: List[Finding]
     active_scans: List[Scan]
+
+
+# --- ToolConfig Schemas ---
+class ToolConfigBase(BaseModel):
+    command_template: str
+    description: Optional[str] = None
+    enabled: bool = True
+
+class ToolConfigUpdate(ToolConfigBase):
+    pass
+
+class ToolConfig(ToolConfigBase):
+    id: int
+    tool_name: str
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- CustomScript Schemas ---
+class CustomScriptBase(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    language: str = Field(default="python", pattern="^(python|bash)$")
+    code: str = Field(..., min_length=1)
+    enabled: bool = True
+    timeout: int = Field(default=60, ge=5, le=300)
+
+class CustomScriptCreate(CustomScriptBase):
+    pass
+
+class CustomScriptUpdate(CustomScriptBase):
+    pass
+
+class CustomScript(CustomScriptBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
